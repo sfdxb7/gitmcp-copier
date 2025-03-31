@@ -15,6 +15,9 @@ export default async function handler(req, res) {
         try {
             // Instantiate the MCP server.
             const mcp = new McpServer({ name: "MCP SSE Server", version: "1.0.0" });
+            if (!req.headers.host) {
+                throw new Error("Missing host header");
+            }
             // Register the "fetch_documentation" tool.
             registerTools(mcp, req.headers.host, req.url);
             // Create an SSE transport.
@@ -39,6 +42,7 @@ export default async function handler(req, res) {
             console.log(`SSE connection established, sessionId: ${sessionId}`);
             // Set up a heartbeat interval.
             const heartbeatInterval = setInterval(async () => {
+                console.log("Sending heartbeat");
                 try {
                     await transport.send({
                         jsonrpc: "2.0",
@@ -69,6 +73,7 @@ export default async function handler(req, res) {
     }
     // POST /api/mcp/message?sessionId=...: handle incoming messages.
     if (req.method === "POST" && adjustedUrl.pathname.endsWith("/message")) {
+        console.log("POST /api/mcp/message", adjustedUrl.pathname);
         const sessionId = adjustedUrl.searchParams.get("sessionId");
         if (!sessionId || !activeTransports[sessionId]) {
             res

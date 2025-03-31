@@ -2,13 +2,13 @@
   "name": "git-mcp",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "server-stdio.js",
   "type": "module",
   "scripts": {
-    "build": "tsc && node -e 'require(\"fs\").chmodSync(\"dist/api/server.js\", 0o755)'",
-    "start": "node dist/api/server.js",
+    "build": "tsc && node -e 'require(\"fs\").chmodSync(\"dist/server.js\", 0o755)' && node -e 'require(\"fs\").chmodSync(\"dist/server-stdio.js\", 0o755)'",
+    "start": "node dist/server.js",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "inspector": "npm run build && npm exec @modelcontextprotocol/inspector dist/api/server.js"
+    "inspector": "npm run build && npm exec @modelcontextprotocol/inspector dist/server-stdio.js"
   },
   "keywords": [],
   "author": "",
