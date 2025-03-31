@@ -52,7 +52,7 @@ export default async function handler(
 
       // Store in local map (for same-instance handling)
       activeTransports[sessionId] = transport;
-      console.log(`SSE connection established, sessionId: ${sessionId}, transport: ${transport}. Transport map size: ${activeTransports.length}`);
+      console.log(`SSE connection established, sessionId: ${sessionId}. Transport map size: ${Object.keys(activeTransports).length}`);
 
       // Store in Redis (for cross-instance handling)
       await storeSession(sessionId, {
@@ -99,6 +99,8 @@ export default async function handler(
           body = b as string;
           return syntheticRes;
         };
+            console.log(`Sending pending message to session ${sessionId}:`, msgData);
+            // Send the message to the transport
         await transport.handlePostMessage(fReq, syntheticRes);
             
             flushResponse(res);
@@ -131,7 +133,10 @@ export default async function handler(
               body = b as string;
               return syntheticRes;
             };
+
+            console.log(`Sending pending message to session ${sessionId}:`, msgData, JSON.stringify(msgData));
             await transport.handlePostMessage(fReq, syntheticRes);
+            console.log('Flushing response after sending message');
             flushResponse(res);
           }
         } catch (error) {
@@ -171,6 +176,7 @@ export default async function handler(
       // Check if we have the transport in this instance
       if (activeTransports[sessionId]) {
         // We can handle it directly in this instance
+        console.log(`Handling POST message for session ${sessionId} directly`);
         await activeTransports[sessionId].handlePostMessage(req, res);
         // res.status(200).json({ success: true, queued: true });
         return;

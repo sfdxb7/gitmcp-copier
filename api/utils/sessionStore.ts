@@ -25,6 +25,7 @@ export async function storeSession(
   metadata: any
 ): Promise<void> {
   const key = `${SESSION_PREFIX}${sessionId}`;
+  console.log(`Storing session ${sessionId} with metadata:`, metadata);
   await redis.set(
     key,
     {
@@ -36,9 +37,6 @@ export async function storeSession(
   );
 }
 
-/**
- * Check if a session exists and update its last activity time
- */
 export async function sessionExists(sessionId: string): Promise<boolean> {
   const key = `${SESSION_PREFIX}${sessionId}`;
   const session = await redis.get(key);
