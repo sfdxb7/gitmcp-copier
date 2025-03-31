@@ -54,9 +54,7 @@ async function fetchDocumentation({ requestHost, requestUrl, }) {
         // Fallback to README.md if llms.txt not found in either branch
         if (!content) {
             // Try main branch first
-            console.error(`fetching readme.md from main branch https://raw.githubusercontent.com/${owner}/${repo}/main/README.md`);
             content = await fetchFile(`https://raw.githubusercontent.com/${owner}/${repo}/main/README.md`);
-            console.error("content", content);
             fileUsed = "readme.md (main branch)";
             // If not found, try master branch
             if (!content) {

@@ -73,7 +73,6 @@ export default async function handler(req, res) {
     }
     // POST /api/mcp/message?sessionId=...: handle incoming messages.
     if (req.method === "POST" && adjustedUrl.pathname.endsWith("/message")) {
-        console.log("POST /api/mcp/message", adjustedUrl.pathname);
         const sessionId = adjustedUrl.searchParams.get("sessionId");
         if (!sessionId || !activeTransports[sessionId]) {
             res
