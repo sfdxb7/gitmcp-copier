@@ -49,12 +49,12 @@ export default async function handler(
       activeTransports[sessionId] = transport;
 
       // Send an immediate handshake message.
-      // await transport.send({
-      //   jsonrpc: "2.0",
-      //   id: "sse-connected",
-      //   result: { message: "SSE Connected", sessionId },
-      // });
-      // flushResponse(res);
+      await transport.send({
+        jsonrpc: "2.0",
+        id: sessionId,
+        result: { message: "SSE Connected", sessionId },
+      });
+      flushResponse(res);
       console.log(`SSE connection established, sessionId: ${sessionId}`);
 
       req.on("close", () => {
