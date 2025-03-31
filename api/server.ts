@@ -114,8 +114,25 @@ export default async function handler(
           const messages = await getPendingMessages(sessionId);
           for (const msgData of messages) {
             console.log(`Sending polled message to session ${sessionId}:`, msgData);
-            await transport.send(msgData.payload);
-            flushResponse(res);
+            const fReq = createFakeIncomingMessage({
+              method: 'POST',
+              url: req.url,
+              // headers: msgData.headers,
+              body: msgData.payload,
+            });
+            const syntheticRes = new ServerResponse(req);
+            let status = 100;
+            let body = "";
+            syntheticRes.writeHead = (statusCode: number) => {
+              status = statusCode;
+              return syntheticRes;
+            };
+            syntheticRes.end = (b: unknown) => {
+              body = b as string;
+              return syntheticRes;
+            };
+            await transport.handlePostMessage(fReq, syntheticRes);
+            // flushResponse(res);
           }
         } catch (error) {
           console.error("Error polling for messages:", error);
