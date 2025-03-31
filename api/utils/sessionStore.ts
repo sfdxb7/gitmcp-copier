@@ -43,20 +43,7 @@ export async function sessionExists(sessionId: string): Promise<boolean> {
   const key = `${SESSION_PREFIX}${sessionId}`;
   const session = await redis.get(key);
 
-  if (session) {
-    // Update last activity time and reset TTL
-    await redis.set(
-      key,
-      {
-        ...session,
-        lastActive: Date.now(),
-      },
-      { ex: SESSION_TTL }
-    );
-    return true;
-  }
-
-  return false;
+  return !!session;
 }
 
 /**

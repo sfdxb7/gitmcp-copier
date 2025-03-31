@@ -49,6 +49,7 @@ export default async function handler(
 
       // Store in local map (for same-instance handling)
       activeTransports[sessionId] = transport;
+      console.log(`SSE connection established, sessionId: ${sessionId}, transport: ${transport}. Transport map size: ${activeTransports.length}`);
 
       // Store in Redis (for cross-instance handling)
       await storeSession(sessionId, {
@@ -88,6 +89,7 @@ export default async function handler(
         try {
           const messages = await getPendingMessages(sessionId);
           for (const msgData of messages) {
+            console.log(`Sending polled message to session ${sessionId}:`, msgData);
             await transport.send(msgData.payload);
             flushResponse(res);
           }
@@ -129,7 +131,7 @@ export default async function handler(
       if (activeTransports[sessionId]) {
         // We can handle it directly in this instance
         await activeTransports[sessionId].handlePostMessage(req, res);
-        return;
+        res.status(200).json({ success: true, queued: true });
       }
 
       const sessionValid = await sessionExists(sessionId);
