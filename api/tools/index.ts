@@ -11,6 +11,60 @@ async function fetchFile(url: string): Promise<string | null> {
   }
 }
 
+// Helper: search for a file in a GitHub repository using the GitHub Search API
+async function searchGitHubRepo(owner: string, repo: string, filename: string): Promise<string | null> {
+  try {
+    // Use GitHub Search API to find the file
+    const searchUrl = `https://api.github.com/search/code?q=filename:${filename}+repo:${owner}/${repo}`;
+    
+    const response = await fetch(searchUrl, {
+      headers: {
+        'Accept': 'application/vnd.github.v3+json',
+        // Add GitHub token as environment variable if rate limits become an issue
+        ...(process.env.GITHUB_TOKEN ? { 'Authorization': `token ${process.env.GITHUB_TOKEN}` } : {})
+      }
+    });
+    
+    if (!response.ok) {
+      console.warn(`GitHub API search failed: ${response.status} ${response.statusText}`);
+      return null;
+    }
+    
+    const data = await response.json();
+    
+    // Check if we found any matches
+    if (data.total_count === 0 || !data.items || data.items.length === 0) {
+      return null;
+    }
+    
+    // Get the first matching file's path
+    const filePath = data.items[0].path;
+    
+    // Get the default branch (main or master)
+    const repoInfoResponse = await fetch(`https://api.github.com/repos/${owner}/${repo}`, {
+      headers: {
+        'Accept': 'application/vnd.github.v3+json',
+        ...(process.env.GITHUB_TOKEN ? { 'Authorization': `token ${process.env.GITHUB_TOKEN}` } : {})
+      }
+    });
+    
+    if (!repoInfoResponse.ok) {
+      // Fallback to main if we can't determine the default branch
+      const defaultBranch = 'main';
+      return await fetchFile(`https://raw.githubusercontent.com/${owner}/${repo}/${defaultBranch}/${filePath}`);
+    }
+    
+    const repoInfo = await repoInfoResponse.json();
+    const defaultBranch = repoInfo.default_branch || 'main';
+    
+    // Fetch the actual file content
+    return await fetchFile(`https://raw.githubusercontent.com/${owner}/${repo}/${defaultBranch}/${filePath}`);
+  } catch (error) {
+    console.error(`Error searching GitHub repo ${owner}/${repo} for ${filename}:`, error);
+    return null;
+  }
+}
+
 export function registerTools(
   mcp: McpServer,
   requestHost: string,
@@ -51,7 +105,8 @@ async function fetchDocumentation({
   const url = new URL(requestUrl || "", `http://${hostHeader}`);
   const path = url.pathname.split("/").filter(Boolean).join("/");
 
-  let fileUsed: string;
+  // Initialize fileUsed to prevent "used before assigned" error
+  let fileUsed = "unknown";
   let content: string | null = null;
 
   // Check for subdomain pattern: {subdomain}.gitmcp.io/{path}
@@ -72,22 +127,48 @@ async function fetchDocumentation({
       );
     }
 
-    // Try fetching from raw.githubusercontent.com using 'main' branch first
-    content = await fetchFile(
-      `https://raw.githubusercontent.com/${owner}/${repo}/main/docs/docs/llms.txt`
-    );
-    fileUsed = "llms.txt (main branch)";
+    // First attempt: Try static paths for llms.txt
+    const possibleLocations = [
+      "docs/docs/llms.txt",     // Current default
+      "llms.txt",               // Root directory
+      "docs/llms.txt",          // Common docs folder
+      "documentation/llms.txt", // Alternative docs folder
+    ];
 
-    // If not found, try 'master' branch
-    if (!content) {
+    // Try each location on 'main' branch first, then 'master' branch
+    for (const location of possibleLocations) {
+      // Try main branch
       content = await fetchFile(
-        `https://raw.githubusercontent.com/${owner}/${repo}/master/docs/docs/llms.txt`
+        `https://raw.githubusercontent.com/${owner}/${repo}/main/${location}`
       );
-      fileUsed = "llms.txt (master branch)";
+      
+      if (content) {
+        fileUsed = `${location} (main branch)`;
+        break;
+      }
+      
+      // Try master branch
+      content = await fetchFile(
+        `https://raw.githubusercontent.com/${owner}/${repo}/master/${location}`
+      );
+      
+      if (content) {
+        fileUsed = `${location} (master branch)`;
+        break;
+      }
     }
 
-    // Fallback to README.md if llms.txt not found in either branch
+    // Fallback to GitHub Search API if static paths don't work for llms.txt
     if (!content) {
+      content = await searchGitHubRepo(owner, repo, "llms.txt");
+      if (content) {
+        fileUsed = "llms.txt (found via GitHub Search API)";
+      }
+    }
+
+    // Fallback to README.md if llms.txt not found in any location
+    if (!content) {
+      // Only use static approach for README, no search API
       // Try main branch first
       content = await fetchFile(
         `https://raw.githubusercontent.com/${owner}/${repo}/main/README.md`
