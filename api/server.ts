@@ -57,24 +57,7 @@ export default async function handler(
       flushResponse(res);
       console.log(`SSE connection established, sessionId: ${sessionId}`);
 
-      // Set up a heartbeat interval.
-      const heartbeatInterval = setInterval(async () => {
-        console.log("Sending heartbeat");
-        try {
-          await transport.send({
-            jsonrpc: "2.0",
-            id: "heartbeat",
-            result: { message: "heartbeat" },
-          });
-          flushResponse(res);
-        } catch (err) {
-          console.error("Heartbeat error:", err);
-          clearInterval(heartbeatInterval);
-        }
-      }, 5000);
-
       req.on("close", () => {
-        clearInterval(heartbeatInterval);
         delete activeTransports[sessionId];
         console.log(`SSE connection closed, sessionId: ${sessionId}`);
       });
