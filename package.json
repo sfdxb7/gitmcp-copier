@@ -5,9 +5,10 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && node -e 'require(\"fs\").chmodSync(\"dist/api/server.js\", 0o755)'",
     "start": "node dist/api/server.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "inspector": "npm run build && npm exec @modelcontextprotocol/inspector dist/api/server.js"
   },
   "keywords": [],
   "author": "",
