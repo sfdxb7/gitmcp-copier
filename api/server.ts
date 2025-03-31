@@ -9,6 +9,9 @@ import {
   getPendingMessages,
 } from "./utils/sessionStore.js";
 import { parseRawBody } from "./utils/bodyParser.js";
+import { Socket } from "net";
+import { Readable } from "stream";
+import { IncomingHttpHeaders, IncomingMessage, ServerResponse } from "http";
 
 // For local instances only - doesn't work across serverless invocations
 let activeTransports: { [sessionId: string]: SSEServerTransport } = {};
@@ -76,7 +79,28 @@ export default async function handler(
         );
         for (const msgData of pendingMessages) {
           try {
-            await transport.send(msgData.payload);
+            // TODO
+
+            // Make in IncomingMessage object because that is what the SDK expects.
+        const fReq = createFakeIncomingMessage({
+          method: 'POST',
+          url: req.url,
+          // headers: msgData.headers,
+          body: msgData.payload,
+        });
+        const syntheticRes = new ServerResponse(req);
+        let status = 100;
+        let body = "";
+        syntheticRes.writeHead = (statusCode: number) => {
+          status = statusCode;
+          return syntheticRes;
+        };
+        syntheticRes.end = (b: unknown) => {
+          body = b as string;
+          return syntheticRes;
+        };
+        await transport.handlePostMessage(fReq, syntheticRes);
+            
             flushResponse(res);
           } catch (error) {
             console.error(`Error sending pending message: ${error}`);
@@ -132,6 +156,7 @@ export default async function handler(
         // We can handle it directly in this instance
         await activeTransports[sessionId].handlePostMessage(req, res);
         res.status(200).json({ success: true, queued: true });
+        return;
       }
 
       const sessionValid = await sessionExists(sessionId);
@@ -163,4 +188,59 @@ export default async function handler(
   }
 
   res.status(404).end("Not found");
+}
+
+
+// Define the options interface
+interface FakeIncomingMessageOptions {
+  method?: string;
+  url?: string;
+  headers?: IncomingHttpHeaders;
+  body?: string | Buffer | Record<string, any> | null;
+  socket?: Socket;
+}
+
+// Create a fake IncomingMessage
+function createFakeIncomingMessage(
+  options: FakeIncomingMessageOptions = {}
+): IncomingMessage {
+  const {
+    method = "GET",
+    url = "/",
+    headers = {},
+    body = null,
+    socket = new Socket(),
+  } = options;
+
+  // Create a readable stream that will be used as the base for IncomingMessage
+  const readable = new Readable();
+  readable._read = (): void => {}; // Required implementation
+
+  // Add the body content if provided
+  if (body) {
+    if (typeof body === "string") {
+      readable.push(body);
+    } else if (Buffer.isBuffer(body)) {
+      readable.push(body);
+    } else {
+      readable.push(JSON.stringify(body));
+    }
+    readable.push(null); // Signal the end of the stream
+  }
+
+  // Create the IncomingMessage instance
+  const req = new IncomingMessage(socket);
+
+  // Set the properties
+  req.method = method;
+  req.url = url;
+  req.headers = headers;
+
+  // Copy over the stream methods
+  req.push = readable.push.bind(readable);
+  req.read = readable.read.bind(readable);
+  (req as any).on = readable.on.bind(readable);
+  req.pipe = readable.pipe.bind(readable);
+
+  return req;
 }
