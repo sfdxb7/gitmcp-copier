@@ -102,7 +102,17 @@ export async function getPendingMessages(sessionId: string): Promise<SessionMess
           console.log("Redis message type:", typeof msg, msg);
         //   console.log(`Raw message from Redis: ${msg.substring(0, 100)}...`);
           // Handle different types of data
-          return JSON.parse(msg);
+          if (typeof msg === 'string') {
+            return JSON.parse(msg);
+          } else if (typeof msg === 'object') {
+            // Already an object, maybe auto-parsed by the Redis client
+            return msg;
+          } else {
+            console.error(`Unexpected message format: ${typeof msg}`);
+            return null;
+          }
+          // This should already be a JSON string that needs to be parsed
+        //   return JSON.parse(msg);
         } catch (parseError) {
           console.error(`Failed to parse message from Redis: ${parseError}`);
           if (typeof msg === 'string' && msg.includes('initialize')) {

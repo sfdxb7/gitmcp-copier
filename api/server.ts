@@ -68,6 +68,7 @@ export default async function handler(
 
       // Check for any pending messages that might have arrived before this connection
       const pendingMessages = await getPendingMessages(sessionId);
+      console.log(`Pending messages for session ${sessionId}:`, pendingMessages);
       if (pendingMessages.length > 0) {
         console.log(
           `Processing ${pendingMessages.length} pending messages for session ${sessionId}`
