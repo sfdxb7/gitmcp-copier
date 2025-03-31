@@ -1,7 +1,7 @@
-# GitMCP - Turn any website into a Model Context Provider
+# GitMCP - Make any project accessible with MCP
 
 <p align="center">
-<img src="https://github.com/user-attachments/assets/3a298030-d02a-4e4a-b9ff-fe776a77318b" width=30% height=30%>
+<img src="https://github.com/user-attachments/assets/7ee9e775-f765-4384-a7bb-7e1322429508" width=30% height=30%>
 </p>
 GitMCP transforms any website to a Model Context Providers (MCP) for AI assistants.
 
