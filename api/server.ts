@@ -101,7 +101,7 @@ export default async function handler(
         };
         await transport.handlePostMessage(fReq, syntheticRes);
             
-            flushResponse(res);
+            // flushResponse(fReq);
           } catch (error) {
             console.error(`Error sending pending message: ${error}`);
           }
