@@ -75,31 +75,52 @@ export async function queueMessage(
       payload: message,
     })
   );
+
+  console.log(`Message queued for session ${sessionId}:`, message, JSON.stringify({
+    timestamp: Date.now(),
+    payload: message,
+  }));
   await redis.expire(key, SESSION_TTL);
 }
 
 /**
  * Get and remove all pending messages for a session
  */
-export async function getPendingMessages(
-  sessionId: string
-): Promise<SessionMessage[]> {
-  const key = `${PENDING_MSG_PREFIX}${sessionId}`;
-
-  // Get all messages
-  const messages = await redis.lrange(key, 0, -1);
-  console.log(`Pending messages for session ${sessionId}:`, messages);
-
-  if (messages && messages.length > 0) {
-    // Delete all messages
-    await redis.del(key);
-
-    // Parse messages
-    return messages.map((msg) => JSON.parse(msg));
+export async function getPendingMessages(sessionId: string): Promise<SessionMessage[]> {
+    const key = `${PENDING_MSG_PREFIX}${sessionId}`;
+    
+    // Get all messages
+    const messages = await redis.lrange(key, 0, -1);
+    
+    if (messages && messages.length > 0) {
+      // Delete all messages after retrieving them
+      await redis.del(key);
+      
+      // Parse messages with error handling
+      return messages.map(msg => {
+        try {
+          // Log the raw message from Redis for debugging
+          console.log(`Raw message from Redis: ${msg.substring(0, 100)}...`);
+          
+          // This should already be a JSON string that needs to be parsed
+          return JSON.parse(msg);
+        } catch (parseError) {
+          console.error(`Failed to parse message from Redis: ${parseError}`);
+          if (msg?.includes('initialize')) {
+            return { 
+                timestamp: Date.now(), 
+                payload: { 
+                  jsonrpc: "2.0", 
+                  method: "initialize"
+                }
+              };
+          }          
+        }
+      }).filter(msg => !!msg);
+    }
+    
+    return [];
   }
-
-  return [];
-}
 
 /**
  * Remove a session
