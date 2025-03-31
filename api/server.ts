@@ -16,11 +16,11 @@ import { IncomingHttpHeaders, IncomingMessage, ServerResponse } from "http";
 // For local instances only - doesn't work across serverless invocations
 let activeTransports: { [sessionId: string]: SSEServerTransport } = {};
 
-function flushResponse(res: NextApiResponse) {
-  const maybeFlush = (res as any).flush;
-  if (typeof maybeFlush === "function") {
-    maybeFlush.call(res);
-  }
+function flushResponse(_: NextApiResponse) {
+  // const maybeFlush = (res as any).flush;
+  // if (typeof maybeFlush === "function") {
+  //   maybeFlush.call(res);
+  // }
 }
 
 export default async function handler(
@@ -136,8 +136,10 @@ export default async function handler(
 
             console.log(`Sending pending message to session ${sessionId}:`, msgData, JSON.stringify(msgData));
             await transport.handlePostMessage(fReq, syntheticRes);
-            console.log('Flushing response after sending message');
-            flushResponse(res);
+
+            console.warn(`Message sent to session ${sessionId} with status ${syntheticRes.statusCode}:`, body);
+
+            // flushResponse(res);
           }
         } catch (error) {
           console.error("Error polling for messages:", error);
