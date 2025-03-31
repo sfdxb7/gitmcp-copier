@@ -5,7 +5,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { readFileSync } from "fs";
 import { fileURLToPath } from "url";
 import { dirname, resolve } from "path";
-import { registerStdioTools, registerTools } from "./tools/index.js";
+import { registerStdioTools } from "./tools/index.js";
 
 // Get package.json version
 const __filename = fileURLToPath(import.meta.url);

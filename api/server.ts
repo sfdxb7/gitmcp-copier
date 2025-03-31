@@ -128,6 +128,7 @@ export default async function handler(
       if (activeTransports[sessionId]) {
         // We can handle it directly in this instance
         await activeTransports[sessionId].handlePostMessage(req, res);
+        return;
       }
 
       const sessionValid = await sessionExists(sessionId);
@@ -140,7 +141,9 @@ export default async function handler(
       }
 
       const rawBody = await parseRawBody(req);
+      console.log(`Received POST message for session ${sessionId}:`, rawBody);
       const message = JSON.parse(rawBody.toString("utf8"));
+      console.log(`Parsed message:`, message);
 
       // Queue the message in Redis for the SSE connection to pick up
       await queueMessage(sessionId, message);
