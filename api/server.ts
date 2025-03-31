@@ -155,7 +155,7 @@ export default async function handler(
       if (activeTransports[sessionId]) {
         // We can handle it directly in this instance
         await activeTransports[sessionId].handlePostMessage(req, res);
-        res.status(200).json({ success: true, queued: true });
+        // res.status(200).json({ success: true, queued: true });
         return;
       }
 
