@@ -101,7 +101,7 @@ export default async function handler(
         };
         await transport.handlePostMessage(fReq, syntheticRes);
             
-            // flushResponse(fReq);
+            flushResponse(res);
           } catch (error) {
             console.error(`Error sending pending message: ${error}`);
           }
@@ -132,7 +132,7 @@ export default async function handler(
               return syntheticRes;
             };
             await transport.handlePostMessage(fReq, syntheticRes);
-            // flushResponse(res);
+            flushResponse(res);
           }
         } catch (error) {
           console.error("Error polling for messages:", error);
