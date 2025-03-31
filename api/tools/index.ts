@@ -40,25 +40,14 @@ async function searchGitHubRepo(owner: string, repo: string, filename: string): 
     // Get the first matching file's path
     const filePath = data.items[0].path;
     
-    // Get the default branch (main or master)
-    const repoInfoResponse = await fetch(`https://api.github.com/repos/${owner}/${repo}`, {
-      headers: {
-        'Accept': 'application/vnd.github.v3+json',
-        ...(process.env.GITHUB_TOKEN ? { 'Authorization': `token ${process.env.GITHUB_TOKEN}` } : {})
-      }
-    });
+    // Try fetching from both main and master branches in parallel
+    const [mainContent, masterContent] = await Promise.all([
+      fetchFile(`https://raw.githubusercontent.com/${owner}/${repo}/main/${filePath}`),
+      fetchFile(`https://raw.githubusercontent.com/${owner}/${repo}/master/${filePath}`)
+    ]);
     
-    if (!repoInfoResponse.ok) {
-      // Fallback to main if we can't determine the default branch
-      const defaultBranch = 'main';
-      return await fetchFile(`https://raw.githubusercontent.com/${owner}/${repo}/${defaultBranch}/${filePath}`);
-    }
-    
-    const repoInfo = await repoInfoResponse.json();
-    const defaultBranch = repoInfo.default_branch || 'main';
-    
-    // Fetch the actual file content
-    return await fetchFile(`https://raw.githubusercontent.com/${owner}/${repo}/${defaultBranch}/${filePath}`);
+    // Return the first non-null content
+    return mainContent || masterContent || null;
   } catch (error) {
     console.error(`Error searching GitHub repo ${owner}/${repo} for ${filename}:`, error);
     return null;
