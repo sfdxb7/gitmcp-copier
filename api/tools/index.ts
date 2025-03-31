@@ -1,6 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { getCachedFilePath, cacheFilePath } from "../utils/upstash";
+import { getCachedFilePath, cacheFilePath } from "../utils/upstash.js";
 
 // Helper: fetch a file from a URL.
 async function fetchFile(url: string): Promise<string | null> {

@@ -1,7 +1,9 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import { registerTools } from "./tools/index.js";
-// For testing: a simple in-memory store for active SSE transports keyed by sessionId.
+import { storeSession, sessionExists, queueMessage, getPendingMessages, } from "./utils/sessionStore.js";
+import { parseRawBody } from "./utils/bodyParser.js";
+// For local instances only - doesn't work across serverless invocations
 let activeTransports = {};
 function flushResponse(res) {
     const maybeFlush = res.flush;
@@ -21,44 +23,59 @@ export default async function handler(req, res) {
             // Register the "fetch_documentation" tool.
             registerTools(mcp, req.headers.host, req.url);
             // Create an SSE transport.
-            // The constructor takes an endpoint (for client POSTs) and the ServerResponse.
-            // Here we designate '/api/mcp/message' as the endpoint for POST messages.
             const endpoint = "/api/mcp/message";
             const transport = new SSEServerTransport(endpoint, res);
-            // Explicitly start the SSE transport.
-            // await transport.start();
             // Connect the MCP server using the transport.
             await mcp.connect(transport);
-            // Save the transport instance using its sessionId.
             const sessionId = transport.sessionId;
+            // Store in local map (for same-instance handling)
             activeTransports[sessionId] = transport;
-            // Send an immediate handshake message.
+            // Store in Redis (for cross-instance handling)
+            await storeSession(sessionId, {
+                host: req.headers.host,
+                userAgent: req.headers["user-agent"],
+                createdAt: new Date().toISOString(),
+            });
+            // Send handshake message
             await transport.send({
                 jsonrpc: "2.0",
-                id: "sse-connected",
+                id: sessionId,
                 result: { message: "SSE Connected", sessionId },
             });
             flushResponse(res);
             console.log(`SSE connection established, sessionId: ${sessionId}`);
-            // Set up a heartbeat interval.
-            const heartbeatInterval = setInterval(async () => {
-                console.log("Sending heartbeat");
+            // Check for any pending messages that might have arrived before this connection
+            const pendingMessages = await getPendingMessages(sessionId);
+            if (pendingMessages.length > 0) {
+                console.log(`Processing ${pendingMessages.length} pending messages for session ${sessionId}`);
+                for (const msgData of pendingMessages) {
+                    try {
+                        await transport.send(msgData.payload);
+                        flushResponse(res);
+                    }
+                    catch (error) {
+                        console.error(`Error sending pending message: ${error}`);
+                    }
+                }
+            }
+            // Set up polling for new messages (only needed if SSE doesn't auto-receive)
+            const pollInterval = setInterval(async () => {
                 try {
-                    await transport.send({
-                        jsonrpc: "2.0",
-                        id: "heartbeat",
-                        result: { message: "heartbeat" },
-                    });
-                    flushResponse(res);
+                    const messages = await getPendingMessages(sessionId);
+                    for (const msgData of messages) {
+                        await transport.send(msgData.payload);
+                        flushResponse(res);
+                    }
                 }
-                catch (err) {
-                    console.error("Heartbeat error:", err);
-                    clearInterval(heartbeatInterval);
+                catch (error) {
+                    console.error("Error polling for messages:", error);
                 }
-            }, 5000);
-            req.on("close", () => {
-                clearInterval(heartbeatInterval);
+            }, 2000); // Poll every 2 seconds
+            // Clean up when the connection closes
+            req.on("close", async () => {
+                clearInterval(pollInterval);
                 delete activeTransports[sessionId];
+                // await removeSession(sessionId);
                 console.log(`SSE connection closed, sessionId: ${sessionId}`);
             });
         }
@@ -74,14 +91,29 @@ export default async function handler(req, res) {
     // POST /api/mcp/message?sessionId=...: handle incoming messages.
     if (req.method === "POST" && adjustedUrl.pathname.endsWith("/message")) {
         const sessionId = adjustedUrl.searchParams.get("sessionId");
-        if (!sessionId || !activeTransports[sessionId]) {
-            res
-                .status(400)
-                .json({ error: "No active SSE session for the provided sessionId" });
+        if (!sessionId) {
+            res.status(400).json({ error: "Missing sessionId parameter" });
             return;
         }
         try {
-            await activeTransports[sessionId].handlePostMessage(req, res);
+            // Check if we have the transport in this instance
+            if (activeTransports[sessionId]) {
+                // We can handle it directly in this instance
+                await activeTransports[sessionId].handlePostMessage(req, res);
+            }
+            const sessionValid = await sessionExists(sessionId);
+            if (!sessionValid) {
+                res
+                    .status(400)
+                    .json({ error: "No active SSE session for the provided sessionId" });
+                return;
+            }
+            const rawBody = await parseRawBody(req);
+            const message = JSON.parse(rawBody.toString("utf8"));
+            // Queue the message in Redis for the SSE connection to pick up
+            await queueMessage(sessionId, message);
+            // Respond with success
+            res.status(200).json({ success: true, queued: true });
         }
         catch (error) {
             console.error("Error handling POST message:", error);
