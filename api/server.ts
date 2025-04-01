@@ -88,7 +88,7 @@ export default async function handler(
           // headers: msgData.headers,
           body: msgData.payload,
         });
-        const syntheticRes = new ServerResponse(req);
+        const syntheticRes = new ServerResponse(fReq);
         let status = 100;
         let body = "";
         syntheticRes.writeHead = (statusCode: number) => {
@@ -122,7 +122,7 @@ export default async function handler(
               // headers: msgData.headers,
               body: msgData.payload,
             });
-            const syntheticRes = new ServerResponse(req);
+            const syntheticRes = new ServerResponse(fReq);
             let status = 100;
             let body = "";
             syntheticRes.writeHead = (statusCode: number) => {
@@ -134,7 +134,7 @@ export default async function handler(
               return syntheticRes;
             };
 
-            console.log(`Sending pending message to session ${sessionId}:`, msgData, JSON.stringify(msgData));
+            console.log(`Sending pending message to session ${sessionId}:`, msgData.payload, JSON.stringify(msgData.payload));
             await transport.handlePostMessage(fReq, syntheticRes);
 
             console.warn(`Message sent to session ${sessionId} with status ${syntheticRes.statusCode}:`, body);
