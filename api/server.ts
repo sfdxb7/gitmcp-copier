@@ -32,7 +32,7 @@ export default async function handler(
   if (req.method === "GET") {
     try {
       // Instantiate the MCP server.
-      const mcp = new McpServer({ name: "MCP SSE Server", version: "1.0.0" });
+      const mcp = new McpServer({ name: `MCP SSE Server for ${req.url}`, version: "1.0.0" });
 
       if (!req.headers.host) {
         throw new Error("Missing host header");
@@ -52,7 +52,7 @@ export default async function handler(
 
       // Store in local map (for same-instance handling)
       activeTransports[sessionId] = transport;
-      console.log(`SSE connection established, sessionId: ${sessionId}. Transport map size: ${Object.keys(activeTransports).length}`);
+      console.log(`SSE connection established, sessionId: ${sessionId}, url: ${req.url}. Transport map size: ${Object.keys(activeTransports).length}`);
 
       // Store in Redis (for cross-instance handling)
       await storeSession(sessionId, {
@@ -65,10 +65,10 @@ export default async function handler(
       await transport.send({
         jsonrpc: "2.0",
         id: sessionId,
-        result: { message: "SSE Connected", sessionId },
+        result: { message: `SSE Connected for ${req.url}`, sessionId },
       });
-      flushResponse(res);
-      console.log(`SSE connection established, sessionId: ${sessionId}`);
+      // flushResponse(res);
+      console.log(`SSE connection established for ${req.url}, sessionId: ${sessionId}`);
 
       // Check for any pending messages that might have arrived before this connection
       const pendingMessages = await getPendingMessages(sessionId);
