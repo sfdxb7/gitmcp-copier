@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import { registerTools } from "./tools/index.js";
-import { storeSession, sessionExists, queueMessage, subscribeToSessionMessages, subscribeToResponse, publishResponse, getActiveSubscribers } from "./utils/sessionStore.js";
+import { storeSession, sessionExists, queueMessage, subscribeToSessionMessages, subscribeToResponse, publishResponse, getActiveSubscribers, } from "./utils/sessionStore.js";
 import { parseRawBody } from "./utils/bodyParser.js";
 import { Socket } from "net";
 import { Readable } from "stream";
@@ -24,9 +24,9 @@ export default async function handler(req, res) {
         try {
             console.info(`[${INSTANCE_ID}:${requestId}] Handling GET request for SSE connection`);
             // Add response headers for SSE
-            res.setHeader('Content-Type', 'text/event-stream');
-            res.setHeader('Cache-Control', 'no-cache');
-            res.setHeader('Connection', 'keep-alive');
+            res.setHeader("Content-Type", "text/event-stream");
+            res.setHeader("Cache-Control", "no-cache");
+            res.setHeader("Connection", "keep-alive");
             console.debug(`[${INSTANCE_ID}:${requestId}] SSE headers set`);
             // Instantiate the MCP server.
             const mcp = new McpServer({
@@ -61,12 +61,12 @@ export default async function handler(req, res) {
             // Setup context-based logging for this session
             // This collects logs from async operations and flushes them periodically
             let logs = [];
-            // This ensures that logs in async contexts (like Redis subscribers) 
+            // This ensures that logs in async contexts (like Redis subscribers)
             // are captured and logged in the proper request context
             function logInContext(severity, ...messages) {
                 logs.push({
                     type: severity,
-                    messages: [`[${INSTANCE_ID}:${requestId}:${sessionId}]`, ...messages]
+                    messages: [`[${INSTANCE_ID}:${requestId}:${sessionId}]`, ...messages],
                 });
             }
             // Periodically flush logs to the console
@@ -86,7 +86,7 @@ export default async function handler(req, res) {
                     userAgent: req.headers["user-agent"],
                     createdAt: new Date().toISOString(),
                     instanceId: INSTANCE_ID,
-                    requestId
+                    requestId,
                 });
                 logInContext("debug", `Session stored in Redis`);
             }
@@ -116,7 +116,7 @@ export default async function handler(req, res) {
                             return syntheticRes;
                         };
                         syntheticRes.end = (b) => {
-                            body = typeof b === 'string' ? b : JSON.stringify(b);
+                            body = typeof b === "string" ? b : JSON.stringify(b);
                             return syntheticRes;
                         };
                         // Process the message with the transport
@@ -128,7 +128,9 @@ export default async function handler(req, res) {
                         catch (e) {
                             logInContext("error", `Transport error processing message ${request.requestId}:`, e);
                             status = 500;
-                            body = JSON.stringify({ error: e instanceof Error ? e.message : String(e) });
+                            body = JSON.stringify({
+                                error: e instanceof Error ? e.message : String(e),
+                            });
                         }
                         // Publish the response back to Redis
                         logInContext("debug", `Publishing response for ${request.requestId} with status ${status} from instance ${INSTANCE_ID}`);
@@ -144,7 +146,9 @@ export default async function handler(req, res) {
                         logInContext("error", `Error processing message:`, error);
                         // Publish error response
                         try {
-                            await publishResponse(sessionId, request.requestId, 500, JSON.stringify({ error: error instanceof Error ? error.message : String(error) }));
+                            await publishResponse(sessionId, request.requestId, 500, JSON.stringify({
+                                error: error instanceof Error ? error.message : String(error),
+                            }));
                             logInContext("info", `Published error response for ${request.requestId}`);
                         }
                         catch (pubError) {
@@ -228,19 +232,20 @@ export default async function handler(req, res) {
         }
         try {
             // Check if we have the transport in this instance - re-enable direct handling
-            if (activeTransports[sessionId]) {
-                // We can handle it directly in this instance
-                console.info(`[${INSTANCE_ID}:${requestId}] Handling POST message for session ${sessionId} directly in this instance (trace: ${messageTraceId})`);
-                try {
-                    await activeTransports[sessionId].handlePostMessage(req, res);
-                    console.info(`[${INSTANCE_ID}:${requestId}] Successfully handled direct message for session ${sessionId} (trace: ${messageTraceId})`);
-                    return;
-                }
-                catch (directError) {
-                    console.error(`[${INSTANCE_ID}:${requestId}] Error handling direct message for ${sessionId} (trace: ${messageTraceId}):`, directError);
-                    // Fall through to Redis handling if direct handling fails
-                }
-            }
+            // if (activeTransports[sessionId]) {
+            //   // We can handle it directly in this instance
+            //   console.info(`[${INSTANCE_ID}:${requestId}] Handling POST message for session ${sessionId} directly in this instance (trace: ${messageTraceId})`);
+            //   try {
+            //     await activeTransports[sessionId].handlePostMessage(req, res);
+            //     console.info(`[${INSTANCE_ID}:${requestId}] Successfully handled direct message for session ${sessionId} (trace: ${messageTraceId})`);
+            //     return;
+            //   } catch (directError) {
+            //     console.error(`[${INSTANCE_ID}:${requestId}] Error handling direct message for ${sessionId} (trace: ${messageTraceId}):`, directError);
+            //     // Fall through to Redis handling if direct handling fails
+            //   }
+            // }
+            // Direct handling is explicitly disabled to diagnose Redis-based handling
+            console.debug(`[${INSTANCE_ID}:${requestId}] Direct handling is disabled, using Redis-based message handling (trace: ${messageTraceId})`);
             console.debug(`[${INSTANCE_ID}:${requestId}] Checking if session ${sessionId} exists in Redis (trace: ${messageTraceId})`);
             const sessionValid = await sessionExists(sessionId);
             if (!sessionValid) {
@@ -256,7 +261,7 @@ export default async function handler(req, res) {
             if (activeSubscribers === 0) {
                 console.error(`[${INSTANCE_ID}:${requestId}] No active subscribers for session ${sessionId} (trace: ${messageTraceId})`);
                 res.status(503).json({
-                    error: "The session exists but has no active subscribers. The SSE connection may have been terminated."
+                    error: "The session exists but has no active subscribers. The SSE connection may have been terminated.",
                 });
                 return;
             }
@@ -294,11 +299,11 @@ export default async function handler(req, res) {
                     console.error(`[${INSTANCE_ID}:${requestId}] Error sending response to client for ${messageRequestId} (trace: ${messageTraceId}):`, error);
                 }
                 // Clean up the subscription
-                unsubscribe().catch(err => {
+                unsubscribe().catch((err) => {
                     console.error(`[${INSTANCE_ID}:${requestId}] Error unsubscribing from response channel for ${messageRequestId} (trace: ${messageTraceId}):`, err);
                 });
             });
-            // Add a shorter timeout for the response to improve user experience
+            // Add a timeout for the response - using 10 seconds for all requests
             responseTimeout = setTimeout(async () => {
                 if (hasResponded) {
                     console.debug(`[${INSTANCE_ID}:${requestId}] Already responded for ${messageRequestId}, not sending timeout response (trace: ${messageTraceId})`);
@@ -307,19 +312,17 @@ export default async function handler(req, res) {
                 hasResponded = true;
                 console.warn(`[${INSTANCE_ID}:${requestId}] Request timed out waiting for response: ${sessionId}:${messageRequestId} (trace: ${messageTraceId})`);
                 // Return 202 to indicate message was accepted but is still being processed
-                // This prevents the client from seeing an error when the message handling
-                // is happening in a different instance than the POST handler
                 res.status(202).json({
                     status: "accepted",
                     message: "Message accepted but processing in another instance",
                     requestId: messageRequestId,
-                    trace: messageTraceId
+                    trace: messageTraceId,
                 });
                 // Clean up the subscription after responding, but don't wait for it
-                unsubscribe().catch(err => {
+                unsubscribe().catch((err) => {
                     console.error(`[${INSTANCE_ID}:${requestId}] Error unsubscribing after timeout for ${messageRequestId} (trace: ${messageTraceId}):`, err);
                 });
-            }, 3000); // 3 second timeout for a faster user experience with Cursor
+            }, 10000); // 10 seconds for all requests
             // Clean up subscription when request is closed
             req.on("close", async () => {
                 console.debug(`[${INSTANCE_ID}:${requestId}] Client closed connection for ${sessionId}:${messageRequestId} (trace: ${messageTraceId})`);
@@ -327,7 +330,7 @@ export default async function handler(req, res) {
                     clearTimeout(responseTimeout);
                 }
                 if (!hasResponded) {
-                    await unsubscribe().catch(err => {
+                    await unsubscribe().catch((err) => {
                         console.error(`[${INSTANCE_ID}:${requestId}] Error unsubscribing on close for ${messageRequestId} (trace: ${messageTraceId}):`, err);
                     });
                 }
