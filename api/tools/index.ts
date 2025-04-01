@@ -509,6 +509,7 @@ async function fetchDocumentation({
 
 /**
  * Search documentation using vector search
+ * Will fetch and index documentation if none exists
  */
 async function searchRepositoryDocumentation({
   requestHost,
@@ -550,54 +551,39 @@ async function searchRepositoryDocumentation({
   }
 
   // Search for documentation using vector search
-  const results = await searchDocumentation(owner, repo, query);
+  let results = await searchDocumentation(owner, repo, query);
 
   // If no results, try to fetch and index the documentation first
   if (results.length === 0) {
-    console.log(`No search results found for ${query}, fetching documentation first`);
+    console.log(`No search results found for ${query} in ${owner}/${repo}, fetching documentation first`);
     
     // Fetch the documentation
     const docResult = await fetchDocumentation({ requestHost, requestUrl });
     const content = docResult.content[0].text;
     
     // Try search again after indexing
-    if (content && owner && repo) {
-      // Wait for vectors to be stored
-      await storeDocumentationVectors(owner, repo, content);
-      console.log(`Stored documentation vectors for ${owner}/${repo}`);
-      
-      // Search again
-      const newResults = await searchDocumentation(owner, repo, query);
-      if (newResults.length > 0) {
-        // Format search results as text for MCP response
-        const formattedText = formatSearchResults(newResults, query);
+    if (content && owner && repo && content !== "No documentation found. Generated fallback content.") {
+      try {
+        // Wait for vectors to be stored
+        const vectorCount = await storeDocumentationVectors(owner, repo, content);
+        console.log(`Indexed ${vectorCount} document chunks for ${owner}/${repo}`);
         
-        return {
-          searchQuery: query,
-          content: [
-            {
-              type: "text" as const,
-              text: formattedText,
-            },
-          ],
-        };
+        // Search again after indexing
+        results = await searchDocumentation(owner, repo, query);
+        console.log(`Re-search after indexing found ${results.length} results`);
+      } catch (error) {
+        console.error(`Error indexing documentation: ${error}`);
       }
     }
-    
-    // If still no results, return a helpful message
-    return {
-      searchQuery: query,
-      content: [
-        {
-          type: "text" as const,
-          text: "No relevant documentation found for your query: " + query,
-        },
-      ],
-    };
   }
-
-  // Format search results as text for MCP response
-  const formattedText = formatSearchResults(results, query);
+  
+  // Format search results as text for MCP response, or provide a helpful message if none
+  let formattedText;
+  if (results.length > 0) {
+    formattedText = formatSearchResults(results, query);
+  } else {
+    formattedText = `### Search Results for: "${query}"\n\nNo relevant documentation found for your query. Try a different search term or check if documentation is available for this repository.`;
+  }
   
   // Return search results in proper MCP format
   return {

@@ -9,8 +9,8 @@ const vector = new Index({
   token: process.env.UPSTASH_VECTOR_REST_TOKEN || "",
 });
 
-// TTL for vector entries in seconds (7 days)
-const VECTOR_TTL = 60 * 60 * 24 * 7;
+// TTL for vector entries in seconds (1 day)
+const VECTOR_TTL = 60 * 60 * 24 * 1;
 
 /**
  * Generate a vector ID for a specific document chunk
@@ -253,87 +253,124 @@ const commonWords = new Set([
 ]);
 
 /**
- * Specialized chunker for documentation that maintains document structure
- * Preserves heading hierarchy and treats documentation entries as cohesive units
- * @param text - Documentation text in markdown format
+ * Specialized chunker for README files that preserves heading context with content
+ * Ensures logical paragraph groups and sections remain coherent
+ * @param text - README text in markdown format
  * @returns Array of text chunks with preserved structure
  */
-export function chunkStructuredDocs(text: string): string[] {
-  // Detect if the content appears to be structured documentation
-  const isStructuredDoc = /\[\S+\]\([^)]+\):.+\n/gm.test(text);
+export function chunkReadme(text: string): string[] {
+  // Check if this appears to be a README format
+  const hasMultipleHeadings = (text.match(/^#+\s+.+/gm) || []).length > 1;
+  const hasCodeBlocks = text.includes("```");
+  const isReadmeLike = hasMultipleHeadings && (hasCodeBlocks || text.includes("* "));
   
-  // If not structured documentation, use the regular chunking
-  if (!isStructuredDoc) {
+  // If not README-like, use the regular chunking
+  if (!isReadmeLike) {
     return chunkText(text);
   }
   
   const chunks: string[] = [];
   
-  // Step 1: Split into main sections based on top-level headings (# Heading)
-  const mainSections = text.split(/(?=^# .*$)/gm);
+  // Track headers at different levels for context preservation
+  let headerStack: string[] = [];
+  let currentChunk = "";
   
-  for (const mainSection of mainSections) {
-    if (!mainSection.trim()) continue;
+  // Split content by headings, lists, and code blocks while preserving structure
+  const lines = text.split("\n");
+  let i = 0;
+  
+  while (i < lines.length) {
+    const line = lines[i];
     
-    // Extract the main section title
-    const mainTitleMatch = mainSection.match(/^# (.*)/);
-    const mainTitle = mainTitleMatch ? mainTitleMatch[1].trim() : "Section";
+    // Check if this is a heading line
+    const headerMatch = line.match(/^(#{1,6})\s+(.+)/);
     
-    // Step 2: Split into subsections (## Heading)
-    const subsections = mainSection.split(/(?=^## .*$)/gm);
-    
-    let mainIntro = "";
-    
-    // First part might be the main section intro text
-    if (subsections.length > 0 && !subsections[0].startsWith('## ')) {
-      mainIntro = subsections.shift() || "";
-      // Only include intro if it's substantial (not just the title)
-      if (mainIntro.trim() !== `# ${mainTitle}`) {
-        chunks.push(mainIntro.trim());
-      }
-    }
-    
-    for (const subsection of subsections) {
-      if (!subsection.trim()) continue;
+    if (headerMatch) {
+      // This is a heading, which means it's a section boundary
+      const headerLevel = headerMatch[1].length;
+      const headerText = headerMatch[2];
       
-      // Extract the subsection title
-      const subTitleMatch = subsection.match(/^## (.*)/);
-      const subTitle = subTitleMatch ? subTitleMatch[1].trim() : "Subsection";
-      
-      // Step 3: Identify individual documentation entries
-      // Look for pattern: [Link Text](URL): Description
-      const entryPattern = /\[([^\]]+)\]\(([^)]+)\):([\s\S]+?)(?=\n\n\[|$)/g;
-      let match;
-      let entriesFound = false;
-      
-      // Create a chunk with subsection context
-      const subsectionContext = `# ${mainTitle}\n\n## ${subTitle}\n\n`;
-      
-      // Extract entries from this subsection
-      while ((match = entryPattern.exec(subsection)) !== null) {
-        entriesFound = true;
-        const [fullMatch, linkText, url, description] = match;
-        
-        // Create a self-contained chunk with hierarchy context
-        const entryChunk = 
-          `${subsectionContext}[${linkText}](${url}):${description.trim()}`;
-        
-        chunks.push(entryChunk);
+      // Before processing the new header, add any existing content as a chunk
+      if (currentChunk.trim().length > 0) {
+        chunks.push(currentChunk.trim());
       }
       
-      // If no entries were found with the pattern, include the whole subsection
-      if (!entriesFound) {
-        const cleanSubsection = subsection.trim();
-        if (cleanSubsection) {
-          chunks.push(cleanSubsection);
+      // Update header context based on level
+      headerStack = headerStack.slice(0, headerLevel - 1);
+      headerStack.push(`${"#".repeat(headerLevel)} ${headerText}`);
+      
+      // Start a new chunk with header context
+      currentChunk = headerStack.join("\n\n") + "\n\n";
+      
+      i++;
+    } else {
+      // This is regular content or a special element (list, code block, etc.)
+      
+      // Group together consecutive paragraphs that belong together
+      if (line.trim() === "") {
+        // Empty line - add a paragraph break
+        currentChunk += "\n\n";
+        i++;
+        continue;
+      }
+      
+      // Check for the start of a code block
+      if (line.trim().startsWith("```")) {
+        // Include the entire code block in the current chunk
+        currentChunk += line + "\n";
+        i++;
+        
+        // Keep adding lines until we find the end of the code block
+        while (i < lines.length) {
+          currentChunk += lines[i] + "\n";
+          if (lines[i].trim() === "```") {
+            break;
+          }
+          i++;
         }
+        i++;
+        continue;
+      }
+      
+      // Check for list items - keep lists together
+      if (line.trim().match(/^[*\-+] |^\d+\. /)) {
+        // This is a list item, add it
+        currentChunk += line + "\n";
+        i++;
+        
+        // Keep adding lines until we find something that's not a list item or empty line
+        while (i < lines.length) {
+          const nextLine = lines[i];
+          
+          // If it's a continuation of the list or empty line between list items
+          if (nextLine.trim() === "" || nextLine.trim().match(/^[*\-+] |^\d+\. /) || 
+              nextLine.trim().startsWith("  ")) {
+            currentChunk += nextLine + "\n";
+            i++;
+          } else {
+            break;
+          }
+        }
+        continue;
+      }
+      
+      // Regular paragraph content
+      currentChunk += line + "\n";
+      i++;
+      
+      // Detect chunks that are getting too large (over 2000 chars)
+      if (currentChunk.length > 2000 && currentChunk.trim().endsWith(".")) {
+        chunks.push(currentChunk.trim());
+        
+        // Start a new chunk with the current header context
+        currentChunk = headerStack.join("\n\n") + "\n\n";
       }
     }
   }
   
-  // If no chunks were created (parsing failed), fall back to regular chunking
-  if (chunks.length === 0) {
-    return chunkText(text);
+  // Add any remaining content
+  if (currentChunk.trim().length > 0) {
+    chunks.push(currentChunk.trim());
   }
   
   return chunks;
@@ -341,12 +378,22 @@ export function chunkStructuredDocs(text: string): string[] {
 
 /**
  * Process documentation text into chunks for vector storage
- * Uses specialized chunking for structured documentation, or falls back to default chunking
+ * Uses specialized chunking based on content type
  * @param text - Documentation text
  * @returns Array of text chunks
  */
 export function chunkDocumentation(text: string): string[] {
-  // First try specialized structured documentation chunking
+  // First try README-specific chunking
+  try {
+    const readmeChunks = chunkReadme(text);
+    if (readmeChunks.length > 0) {
+      return readmeChunks;
+    }
+  } catch (error) {
+    console.warn("README chunking failed, trying next chunker");
+  }
+  
+  // Then try structured documentation chunking
   try {
     const structuredChunks = chunkStructuredDocs(text);
     if (structuredChunks.length > 0) {
@@ -692,4 +739,91 @@ export async function searchDocumentation(
     console.error(`Error searching documentation for ${owner}/${repo}:`, error);
     return [];
   }
+}
+
+/**
+ * Specialized chunker for documentation that maintains document structure
+ * Preserves heading hierarchy and treats documentation entries as cohesive units
+ * @param text - Documentation text in markdown format
+ * @returns Array of text chunks with preserved structure
+ */
+export function chunkStructuredDocs(text: string): string[] {
+  // Detect if the content appears to be structured documentation
+  const isStructuredDoc = /\[\S+\]\([^)]+\):.+\n/gm.test(text);
+  
+  // If not structured documentation, use the regular chunking
+  if (!isStructuredDoc) {
+    return chunkText(text);
+  }
+  
+  const chunks: string[] = [];
+  
+  // Step 1: Split into main sections based on top-level headings (# Heading)
+  const mainSections = text.split(/(?=^# .*$)/gm);
+  
+  for (const mainSection of mainSections) {
+    if (!mainSection.trim()) continue;
+    
+    // Extract the main section title
+    const mainTitleMatch = mainSection.match(/^# (.*)/);
+    const mainTitle = mainTitleMatch ? mainTitleMatch[1].trim() : "Section";
+    
+    // Step 2: Split into subsections (## Heading)
+    const subsections = mainSection.split(/(?=^## .*$)/gm);
+    
+    let mainIntro = "";
+    
+    // First part might be the main section intro text
+    if (subsections.length > 0 && !subsections[0].startsWith('## ')) {
+      mainIntro = subsections.shift() || "";
+      // Only include intro if it's substantial (not just the title)
+      if (mainIntro.trim() !== `# ${mainTitle}`) {
+        chunks.push(mainIntro.trim());
+      }
+    }
+    
+    for (const subsection of subsections) {
+      if (!subsection.trim()) continue;
+      
+      // Extract the subsection title
+      const subTitleMatch = subsection.match(/^## (.*)/);
+      const subTitle = subTitleMatch ? subTitleMatch[1].trim() : "Subsection";
+      
+      // Step 3: Identify individual documentation entries
+      // Look for pattern: [Link Text](URL): Description
+      const entryPattern = /\[([^\]]+)\]\(([^)]+)\):([\s\S]+?)(?=\n\n\[|$)/g;
+      let match;
+      let entriesFound = false;
+      
+      // Create a chunk with subsection context
+      const subsectionContext = `# ${mainTitle}\n\n## ${subTitle}\n\n`;
+      
+      // Extract entries from this subsection
+      while ((match = entryPattern.exec(subsection)) !== null) {
+        entriesFound = true;
+        const [fullMatch, linkText, url, description] = match;
+        
+        // Create a self-contained chunk with hierarchy context
+        const entryChunk = 
+          `${subsectionContext}[${linkText}](${url}):${description.trim()}`;
+        
+        chunks.push(entryChunk);
+      }
+      
+      // If no entries were found with the pattern, include the whole subsection
+      if (!entriesFound) {
+        const cleanSubsection = subsection.trim();
+        if (cleanSubsection) {
+          chunks.push(cleanSubsection);
+        }
+      }
+    }
+  }
+  
+  // If no chunks were created (parsing failed), fall back to regular chunking
+  if (chunks.length === 0) {
+    return chunkText(text);
+  }
+  
+  return chunks;
 }
