@@ -806,92 +806,96 @@ export async function searchDocumentation(
  * @returns Array of text chunks with preserved structure
  */
 export function chunkStructuredDocs(text: string): string[] {
-  // Detect if the content appears to be structured documentation in llms.txt format
-  const isLlmsFormat = /\[[^\]]+\]\([^)]+\):[\s\S]+?(?=\n\n\[|\n\n#|$)/gm.test(text);
-  
-  // If not structured documentation, use the regular chunking
-  if (!isLlmsFormat) {
+  // Check if this looks like a structured documentation file with link-description entries
+  // This is a simple check to quickly determine if this is an llms.txt file
+  if (!text.includes('[') || !text.includes('](') || !text.includes('):')) {
     return chunkText(text);
   }
   
   const chunks: string[] = [];
   
-  // Step 1: Extract all header sections to build a hierarchy map
-  const headerLines: { level: number; title: string; lineIndex: number }[] = [];
+  // Step 1: Extract all headers and their positions
+  const headers: { level: number; title: string; position: number; }[] = [];
   const lines = text.split('\n');
   
-  // First pass: identify all headers and their line positions
+  // Find all headers and their positions
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const headerMatch = line.match(/^(#{1,6})\s+(.*)/);
     if (headerMatch) {
-      headerLines.push({
+      headers.push({
         level: headerMatch[1].length,
         title: headerMatch[2].trim(),
-        lineIndex: i
+        position: i
       });
     }
   }
   
-  // Function to get current header context at a given line index
-  function getHeaderContext(lineIndex: number): string[] {
-    const activeHeaders: { level: number; title: string }[] = [];
+  // Function to get the current header hierarchy at a specific position
+  function getHeaderHierarchy(position: number): string {
+    const relevantHeaders = [];
+    let currentLevel = 10; // Start with high number to catch all levels
     
-    // Find all headers that apply at this line position
-    for (const header of headerLines) {
-      if (header.lineIndex < lineIndex) {
-        // Replace any existing header at the same level
-        while (activeHeaders.length > 0 && activeHeaders[activeHeaders.length - 1].level >= header.level) {
-          activeHeaders.pop();
+    // Find all headers that are active at this position, respecting hierarchy
+    for (const header of headers) {
+      if (header.position < position) {
+        if (header.level < currentLevel) {
+          // This header is higher in hierarchy than what we've seen
+          relevantHeaders.push(`${'#'.repeat(header.level)} ${header.title}`);
+          currentLevel = header.level;
+        } else if (header.level === currentLevel) {
+          // Replace the current header at this level
+          relevantHeaders.pop();
+          relevantHeaders.push(`${'#'.repeat(header.level)} ${header.title}`);
+        } else {
+          // This is a subheader of our current header
+          relevantHeaders.push(`${'#'.repeat(header.level)} ${header.title}`);
         }
-        activeHeaders.push({ level: header.level, title: header.title });
-      } else if (header.lineIndex > lineIndex) {
-        // We've gone past the current line
-        break;
       }
     }
     
-    // Format the headers as markdown
-    return activeHeaders.map(h => `${'#'.repeat(h.level)} ${h.title}`);
+    return relevantHeaders.join('\n\n');
   }
   
-  // Step 2: Find all documentation entries and create individual chunks
-  // LLMs.txt format has entries like: [Link Text](URL): Description
-  const entryPattern = /\[([^\]]+)\]\(([^)]+)\):([\s\S]+?)(?=\n\n\[|\n\n#|$)/g;
-  let match;
+  // Step 2: Process the content by paragraphs, looking for documentation entries
+  const paragraphs = text.split(/\n\s*\n/); // Split on blank lines
   
-  while ((match = entryPattern.exec(text)) !== null) {
-    const [fullMatch, linkText, url, description] = match;
-    const matchIndex = match.index;
+  for (let i = 0; i < paragraphs.length; i++) {
+    const paragraph = paragraphs[i].trim();
     
-    // Find the line index for this match
-    let lineCount = 0;
-    let currentIndex = 0;
-    while (currentIndex < matchIndex && currentIndex < text.length) {
-      if (text[currentIndex] === '\n') {
-        lineCount++;
+    // Skip empty paragraphs
+    if (!paragraph) continue;
+    
+    // Check if this paragraph is a header - skip it as we handle headers separately
+    if (/^#{1,6}\s+/.test(paragraph)) continue;
+    
+    // Check if this paragraph contains a documentation entry
+    // Pattern: [Title](URL): Description
+    if (paragraph.match(/^\[.+?\]\(.+?\):/)) {
+      // Calculate position in the original text for header context
+      const paragraphPosition = text.indexOf(paragraph);
+      
+      // Get the headers that apply at this position
+      const headerContext = getHeaderHierarchy(paragraphPosition);
+      
+      // Create a chunk with header context and just this single entry
+      let chunkText = '';
+      if (headerContext) {
+        chunkText = headerContext + '\n\n';
       }
-      currentIndex++;
+      chunkText += paragraph;
+      
+      chunks.push(chunkText.trim());
+    } else {
+      // For paragraphs that aren't documentation entries, use standard chunking
+      // But only if they have substantial content (not just formatting)
+      if (paragraph.length > 20) {
+        chunks.push(paragraph.trim());
+      }
     }
-    
-    // Get header context for this entry
-    const headerContext = getHeaderContext(lineCount);
-    
-    // Create a self-contained chunk with proper context hierarchy
-    let entryChunk = '';
-    
-    // Add header context if available
-    if (headerContext.length > 0) {
-      entryChunk = headerContext.join('\n\n') + '\n\n';
-    }
-    
-    // Add the entry itself
-    entryChunk += `[${linkText}](${url}):${description.trim()}`;
-    
-    chunks.push(entryChunk.trim());
   }
   
-  // If no entries were found, fall back to regular chunking
+  // If no chunks were found using this approach, fall back to regular chunking
   if (chunks.length === 0) {
     return chunkText(text);
   }

@@ -552,62 +552,114 @@ async function searchRepositoryDocumentation({
 
   console.log(`Searching ${owner}/${repo} for "${query}"`);
   
-  // Search for documentation using vector search
-  let results = await searchDocumentation(owner, repo, query);
-
-  // If no results, try to fetch and index the documentation first
-  if (results.length === 0) {
-    console.log(`No search results found for ${query} in ${owner}/${repo}, fetching documentation first`);
+  // First, check if this is the initial search for this repo/owner
+  let isFirstSearch = false;
+  
+  try {
+    // Search for documentation using vector search
+    let results = await searchDocumentation(owner, repo, query);
     
-    // Fetch the documentation
-    const docResult = await fetchDocumentation({ requestHost, requestUrl });
-    const content = docResult.content[0].text;
-    const fileUsed = docResult.fileUsed;
-    
-    console.log(`Fetched documentation from ${fileUsed} (${content.length} characters)`);
-    
-    // Try search again after indexing
-    if (content && owner && repo && content !== "No documentation found. Generated fallback content.") {
-      try {
-        // Wait for vectors to be stored
-        const vectorCount = await storeDocumentationVectors(owner, repo, content);
-        console.log(`Successfully indexed ${vectorCount} document chunks for ${owner}/${repo}`);
-        
-        // Search again after indexing
-        results = await searchDocumentation(owner, repo, query);
-        console.log(`Re-search after indexing found ${results.length} results`);
-      } catch (error) {
-        console.error(`Error indexing documentation: ${error}`);
+    // If no results, we might need to index the documentation
+    if (results.length === 0) {
+      console.log(`No search results found for ${query} in ${owner}/${repo}, fetching documentation first`);
+      isFirstSearch = true;
+      
+      // Fetch the documentation
+      const docResult = await fetchDocumentation({ requestHost, requestUrl });
+      const content = docResult.content[0].text;
+      const fileUsed = docResult.fileUsed;
+      
+      console.log(`Fetched documentation from ${fileUsed} (${content.length} characters)`);
+      
+      // Only index and search if we got actual content
+      if (content && owner && repo && content !== "No documentation found. Generated fallback content.") {
+        try {
+          // Wait for vectors to be stored
+          const vectorCount = await storeDocumentationVectors(owner, repo, content);
+          console.log(`Successfully indexed ${vectorCount} document chunks for ${owner}/${repo}`);
+          
+          // Wait a short time to ensure indexing is complete
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
+          // Search again after indexing
+          results = await searchDocumentation(owner, repo, query);
+          console.log(`Re-search after indexing found ${results.length} results`);
+          
+          // If still no results on first search, send a message about indexing
+          if (results.length === 0 && isFirstSearch) {
+            return {
+              searchQuery: query,
+              content: [
+                {
+                  type: "text" as const,
+                  text: `### Search Results for: "${query}"\n\n` +
+                    `We've just indexed the documentation for this repository (${vectorCount} chunks). ` +
+                    `Your search didn't match any sections.\n\n` +
+                    `Please try your search again in a moment, or try different search terms.`
+                },
+              ],
+            };
+          }
+        } catch (error) {
+          console.error(`Error indexing documentation: ${error}`);
+          
+          // If there was an indexing error on first search, inform the user
+          if (isFirstSearch) {
+            return {
+              searchQuery: query,
+              content: [
+                {
+                  type: "text" as const,
+                  text: `### Search Results for: "${query}"\n\n` +
+                    `We encountered an issue while indexing the documentation. ` +
+                    `Please try your search again in a moment.`
+                },
+              ],
+            };
+          }
+        }
       }
     }
+    
+    // Format search results as text for MCP response, or provide a helpful message if none
+    let formattedText;
+    if (results.length > 0) {
+      formattedText = formatSearchResults(results, query);
+    } else {
+      // Provide more helpful guidance when no results are found
+      formattedText = `### Search Results for: "${query}"\n\n` +
+        `No relevant documentation found for your query. The documentation for this repository has been indexed, ` +
+        `but no sections matched your specific search terms.\n\n` +
+        `Try:\n` +
+        `- Using different keywords\n` +
+        `- Being more specific about what you're looking for\n` +
+        `- Checking for basic information like "What is ${repo}?"\n` +
+        `- Using common terms like "installation", "tutorial", or "example"\n`;
+    }
+    
+    // Return search results in proper MCP format
+    return {
+      searchQuery: query,
+      content: [
+        {
+          type: "text" as const,
+          text: formattedText,
+        },
+      ],
+    };
+  } catch (error) {
+    console.error(`Error in searchRepositoryDocumentation: ${error}`);
+    return {
+      searchQuery: query,
+      content: [
+        {
+          type: "text" as const,
+          text: `### Search Results for: "${query}"\n\n` +
+            `An error occurred while searching the documentation. Please try again later.`
+        },
+      ],
+    };
   }
-  
-  // Format search results as text for MCP response, or provide a helpful message if none
-  let formattedText;
-  if (results.length > 0) {
-    formattedText = formatSearchResults(results, query);
-  } else {
-    // Provide more helpful guidance when no results are found
-    formattedText = `### Search Results for: "${query}"\n\n` +
-      `No relevant documentation found for your query. The documentation for this repository has been indexed, ` +
-      `but no sections matched your specific search terms.\n\n` +
-      `Try:\n` +
-      `- Using different keywords\n` +
-      `- Being more specific about what you're looking for\n` +
-      `- Checking for basic information like "What is ${repo}?"\n` +
-      `- Using common terms like "installation", "tutorial", or "example"\n`;
-  }
-  
-  // Return search results in proper MCP format
-  return {
-    searchQuery: query,
-    content: [
-      {
-        type: "text" as const,
-        text: formattedText,
-      },
-    ],
-  };
 }
 
 /**
