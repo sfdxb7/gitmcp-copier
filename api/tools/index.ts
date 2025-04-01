@@ -1,7 +1,10 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { getCachedFilePath, cacheFilePath } from "../utils/upstash.js";
-import { searchDocumentation, storeDocumentationVectors } from "../utils/vectorStore.js";
+import {
+  searchDocumentation,
+  storeDocumentationVectors,
+} from "../utils/vectorStore.js";
 
 // Helper: fetch a file from a URL.
 async function fetchFile(url: string): Promise<string | null> {
@@ -122,18 +125,27 @@ export function registerTools(
   const description = generateToolDescription(requestHost, requestUrl);
   const toolName = generateToolName(requestHost, requestUrl);
   const searchToolName = generateSearchToolName(requestHost, requestUrl);
-  const searchDescription = generateSearchToolDescription(requestHost, requestUrl);
+  const searchDescription = generateSearchToolDescription(
+    requestHost,
+    requestUrl,
+  );
 
   // Register fetch documentation tool
   mcp.tool(toolName, description, {}, async () =>
     fetchDocumentation({ requestHost, requestUrl }),
   );
-  
+
   // Register search documentation tool
-  mcp.tool(searchToolName, searchDescription, {
-    query: z.string().describe("The search query to find relevant documentation"),
-  }, async ({ query }) => 
-    searchRepositoryDocumentation({ requestHost, requestUrl, query })
+  mcp.tool(
+    searchToolName,
+    searchDescription,
+    {
+      query: z
+        .string()
+        .describe("The search query to find relevant documentation"),
+    },
+    async ({ query }) =>
+      searchRepositoryDocumentation({ requestHost, requestUrl, query }),
   );
 }
 
@@ -155,18 +167,23 @@ export function registerStdioTools(mcp: McpServer) {
       });
     },
   );
-  
+
   mcp.tool(
     "search_documentation",
     "Search documentation for a repository (URL will be provided when called).",
     {
       requestUrl: z.string(),
-      query: z.string().describe("The search query to find relevant documentation"),
+      query: z
+        .string()
+        .describe("The search query to find relevant documentation"),
     },
     async ({ requestUrl, query }) => {
       const requestHost = new URL(requestUrl).host;
       // Generate dynamic description after the URL is provided
-      const searchDescription = generateSearchToolDescription(requestHost, requestUrl);
+      const searchDescription = generateSearchToolDescription(
+        requestHost,
+        requestUrl,
+      );
       console.log(`Using search tool description: ${searchDescription}`);
       return searchRepositoryDocumentation({
         requestHost,
@@ -177,40 +194,60 @@ export function registerStdioTools(mcp: McpServer) {
   );
 }
 
+function getRepoData(
+  requestHost: string,
+  requestUrl?: string,
+): { subdomain?: string; path?: string; owner?: string; repo?: string } {
+  // Parse the URL if provided
+  const url = requestUrl
+    ? new URL(`http://${requestHost}${requestUrl}`)
+    : new URL(`http://${requestHost}`);
+  const path = url.pathname.split("/").filter(Boolean).join("/");
+
+  // Check for subdomain pattern: {subdomain}.gitmcp.io/{path}
+  if (requestHost.includes(".gitmcp.io")) {
+    const subdomain = requestHost.split(".")[0];
+    return { subdomain, path };
+  }
+  // Check for github repo pattern: gitmcp.io/{owner}/{repo} or git-mcp.vercel.app/{owner}/{repo}
+  else if (
+    requestHost === "gitmcp.io" ||
+    requestHost === "git-mcp.vercel.app"
+  ) {
+    // Extract owner/repo from path
+    const [owner, repo] = path.split("/");
+    if (owner && repo) {
+      return { owner, repo };
+    }
+  }
+  return {};
+}
+
 /**
  * Generate a dynamic search tool name for the search_documentation tool based on the URL
  * @param requestHost - The host from the request
  * @param requestUrl - The full request URL (optional)
  * @returns A descriptive string for the tool name
  */
-function generateSearchToolName(requestHost: string, requestUrl?: string): string {
+function generateSearchToolName(
+  requestHost: string,
+  requestUrl?: string,
+): string {
   try {
     console.log("Generating search tool name for host:", requestUrl);
 
     // Default tool name as fallback
     let toolName = "search_documentation";
 
-    // Parse the URL if provided
-    const url = requestUrl
-      ? new URL(`http://${requestHost}${requestUrl}`)
-      : new URL(`http://${requestHost}`);
-    const path = url.pathname.split("/").filter(Boolean).join("/");
+    const { subdomain, path, owner, repo } = getRepoData(
+      requestHost,
+      requestUrl,
+    );
 
-    // Check for subdomain pattern: {subdomain}.gitmcp.io/{path}
-    if (requestHost.includes(".gitmcp.io")) {
-      const subdomain = requestHost.split(".")[0];
+    if (subdomain && path) {
       toolName = `search_${subdomain}_${path}_documentation`;
-    }
-    // Check for github repo pattern: gitmcp.io/{owner}/{repo} or git-mcp.vercel.app/{owner}/{repo}
-    else if (
-      requestHost === "gitmcp.io" ||
-      requestHost === "git-mcp.vercel.app"
-    ) {
-      // Extract owner/repo from path
-      const [owner, repo] = path.split("/");
-      if (owner && repo) {
-        toolName = `search_${owner}_${repo}_documentation`;
-      }
+    } else if (owner && repo) {
+      toolName = `search_${owner}_${repo}_documentation`;
     }
 
     // replace non-alphanumeric characters with underscores
@@ -238,28 +275,17 @@ function generateSearchToolDescription(
     // Default description as fallback
     let description = "Search documentation for the current repository.";
 
-    // Parse the URL if provided
-    const url = requestUrl
-      ? new URL(`http://${requestHost}${requestUrl}`)
-      : new URL(`http://${requestHost}`);
-    const path = url.pathname.split("/").filter(Boolean).join("/");
+    const { subdomain, path, owner, repo } = getRepoData(
+      requestHost,
+      requestUrl,
+    );
 
-    // Check for subdomain pattern: {subdomain}.gitmcp.io/{path}
-    if (requestHost.includes(".gitmcp.io")) {
-      const subdomain = requestHost.split(".")[0];
+    if (subdomain && path) {
       description = `Search documentation from the ${subdomain}/${path} GitHub Pages.`;
+    } else if (owner && repo) {
+      description = `Search documentation from GitHub repository: ${owner}/${repo}.`;
     }
-    // Check for github repo pattern: gitmcp.io/{owner}/{repo} or git-mcp.vercel.app/{owner}/{repo}
-    else if (
-      requestHost === "gitmcp.io" ||
-      requestHost === "git-mcp.vercel.app"
-    ) {
-      // Extract owner/repo from path
-      const [owner, repo] = path.split("/");
-      if (owner && repo) {
-        description = `Search documentation from GitHub repository: ${owner}/${repo}.`;
-      }
-    }
+
     return description;
   } catch (error) {
     // Return default description if there's any error parsing the URL
@@ -283,28 +309,17 @@ function generateToolDescription(
     // Default description as fallback
     let description = "Fetch documentation for the current repository.";
 
-    // Parse the URL if provided
-    const url = requestUrl
-      ? new URL(`http://${requestHost}${requestUrl}`)
-      : new URL(`http://${requestHost}`);
-    const path = url.pathname.split("/").filter(Boolean).join("/");
+    const { subdomain, path, owner, repo } = getRepoData(
+      requestHost,
+      requestUrl,
+    );
 
-    // Check for subdomain pattern: {subdomain}.gitmcp.io/{path}
-    if (requestHost.includes(".gitmcp.io")) {
-      const subdomain = requestHost.split(".")[0];
+    if (subdomain && path) {
       description = `Fetch documentation from the ${subdomain}/${path} GitHub Pages.`;
+    } else if (owner && repo) {
+      description = `Fetch documentation from GitHub repository: ${owner}/${repo}.`;
     }
-    // Check for github repo pattern: gitmcp.io/{owner}/{repo} or git-mcp.vercel.app/{owner}/{repo}
-    else if (
-      requestHost === "gitmcp.io" ||
-      requestHost === "git-mcp.vercel.app"
-    ) {
-      // Extract owner/repo from path
-      const [owner, repo] = path.split("/");
-      if (owner && repo) {
-        description = `Fetch documentation from GitHub repository: ${owner}/${repo}.`;
-      }
-    }
+
     return description;
   } catch (error) {
     // Return default description if there's any error parsing the URL
@@ -325,27 +340,15 @@ function generateToolName(requestHost: string, requestUrl?: string): string {
     // Default tool name as fallback
     let toolName = "fetch_documentation";
 
-    // Parse the URL if provided
-    const url = requestUrl
-      ? new URL(`http://${requestHost}${requestUrl}`)
-      : new URL(`http://${requestHost}`);
-    const path = url.pathname.split("/").filter(Boolean).join("/");
+    const { subdomain, path, owner, repo } = getRepoData(
+      requestHost,
+      requestUrl,
+    );
 
-    // Check for subdomain pattern: {subdomain}.gitmcp.io/{path}
-    if (requestHost.includes(".gitmcp.io")) {
-      const subdomain = requestHost.split(".")[0];
+    if (subdomain && path) {
       toolName = `fetch_${subdomain}_${path}_documentation`;
-    }
-    // Check for github repo pattern: gitmcp.io/{owner}/{repo} or git-mcp.vercel.app/{owner}/{repo}
-    else if (
-      requestHost === "gitmcp.io" ||
-      requestHost === "git-mcp.vercel.app"
-    ) {
-      // Extract owner/repo from path
-      const [owner, repo] = path.split("/");
-      if (owner && repo) {
-        toolName = `fetch_${owner}_${repo}_documentation`;
-      }
+    } else if (owner && repo) {
+      toolName = `fetch_${owner}_${repo}_documentation`;
     }
 
     // replace non-alphanumeric characters with underscores
@@ -364,35 +367,21 @@ async function fetchDocumentation({
   requestHost: string;
   requestUrl?: string;
 }) {
-  const hostHeader = requestHost;
-
-  const url = new URL(requestUrl || "", `http://${hostHeader}`);
-  const path = url.pathname.split("/").filter(Boolean).join("/");
+  const { subdomain, path, owner, repo } = getRepoData(requestHost, requestUrl);
 
   // Initialize fileUsed to prevent "used before assigned" error
   let fileUsed = "unknown";
   let content: string | null = null;
-  let owner: string | null = null;
-  let repo: string | null = null;
 
   // Check for subdomain pattern: {subdomain}.gitmcp.io/{path}
-  if (hostHeader.includes(".gitmcp.io")) {
-    const subdomain = hostHeader.split(".")[0];
+  if (subdomain && path) {
     // Map to github.io
     const baseURL = `https://${subdomain}.github.io/${path}/`;
     content = await fetchFile(baseURL + "llms.txt");
     fileUsed = "llms.txt";
   }
   // Check for github repo pattern: gitmcp.io/{owner}/{repo} or git-mcp.vercel.app/{owner}/{repo}
-  else if (hostHeader === "gitmcp.io" || hostHeader === "git-mcp.vercel.app") {
-    // Extract owner/repo from path
-    [owner, repo] = path.split("/");
-    if (!owner || !repo) {
-      throw new Error(
-        "Invalid path format for GitHub repo. Expected: {owner}/{repo}",
-      );
-    }
-
+  else if (owner && repo) {
     // First check if we have a cached path for llms.txt
     const cachedPath = await getCachedFilePath(owner, repo, "llms.txt");
     if (cachedPath) {
@@ -462,7 +451,7 @@ async function fetchDocumentation({
         fileUsed = "readme.md (master branch)";
       }
     }
-    
+
     // Store documentation in vector database for later search
     if (content && owner && repo) {
       try {
@@ -477,7 +466,7 @@ async function fetchDocumentation({
   // Default/fallback case
   else {
     // Map "gitmcp.io" to "github.io"
-    const mappedHost = hostHeader.replace("gitmcp.io", "github.io");
+    const mappedHost = requestHost.replace("gitmcp.io", "github.io");
     let baseURL = `https://${mappedHost}/${path}`;
     if (!baseURL.endsWith("/")) {
       baseURL += "/";
@@ -536,7 +525,7 @@ async function searchRepositoryDocumentation({
     const subdomain = hostHeader.split(".")[0];
     owner = subdomain;
     repo = path || "docs";
-  } 
+  }
   // Check for github repo pattern: gitmcp.io/{owner}/{repo} or git-mcp.vercel.app/{owner}/{repo}
   else if (hostHeader === "gitmcp.io" || hostHeader === "git-mcp.vercel.app") {
     // Extract owner/repo from path
@@ -549,44 +538,63 @@ async function searchRepositoryDocumentation({
   } else {
     // For other cases, use hostname as owner and path as repo
     owner = hostHeader.replace(/\./g, "_");
-    repo = path || "docs"; 
+    repo = path || "docs";
   }
 
   console.log(`Searching ${owner}/${repo} for "${query}"`);
-  
+
   // First, check if this is the initial search for this repo/owner or if reindexing is forced
   let isFirstSearch = false;
-  
+
   try {
     // Search for documentation using vector search
     let results = await searchDocumentation(owner, repo, query);
-    
+
     // If no results or forceReindex is true, we need to index the documentation
     if (results.length === 0 || forceReindex) {
-      console.log(`${forceReindex ? 'Force reindexing' : 'No search results found'} for ${query} in ${owner}/${repo}, fetching documentation first`);
+      console.log(
+        `${
+          forceReindex ? "Force reindexing" : "No search results found"
+        } for ${query} in ${owner}/${repo}, fetching documentation first`,
+      );
       isFirstSearch = true;
-      
+
       // Fetch the documentation
       const docResult = await fetchDocumentation({ requestHost, requestUrl });
       const content = docResult.content[0].text;
       const fileUsed = docResult.fileUsed;
-      
-      console.log(`Fetched documentation from ${fileUsed} (${content.length} characters)`);
-      
+
+      console.log(
+        `Fetched documentation from ${fileUsed} (${content.length} characters)`,
+      );
+
       // Only index and search if we got actual content
-      if (content && owner && repo && content !== "No documentation found. Generated fallback content.") {
+      if (
+        content &&
+        owner &&
+        repo &&
+        content !== "No documentation found. Generated fallback content."
+      ) {
         try {
           // Wait for vectors to be stored
-          const vectorCount = await storeDocumentationVectors(owner, repo, content);
-          console.log(`Successfully indexed ${vectorCount} document chunks for ${owner}/${repo}`);
-          
+          const vectorCount = await storeDocumentationVectors(
+            owner,
+            repo,
+            content,
+          );
+          console.log(
+            `Successfully indexed ${vectorCount} document chunks for ${owner}/${repo}`,
+          );
+
           // Wait a short time to ensure indexing is complete
-          await new Promise(resolve => setTimeout(resolve, 500));
-          
+          await new Promise((resolve) => setTimeout(resolve, 500));
+
           // Search again after indexing
           results = await searchDocumentation(owner, repo, query);
-          console.log(`Re-search after indexing found ${results.length} results`);
-          
+          console.log(
+            `Re-search after indexing found ${results.length} results`,
+          );
+
           // If still no results on first search, send a message about indexing
           if (results.length === 0 && isFirstSearch) {
             return {
@@ -594,17 +602,18 @@ async function searchRepositoryDocumentation({
               content: [
                 {
                   type: "text" as const,
-                  text: `### Search Results for: "${query}"\n\n` +
+                  text:
+                    `### Search Results for: "${query}"\n\n` +
                     `We've just indexed the documentation for this repository (${vectorCount} chunks). ` +
                     `Your search didn't match any sections.\n\n` +
-                    `Please try your search again in a moment, or try different search terms.`
+                    `Please try your search again in a moment, or try different search terms.`,
                 },
               ],
             };
           }
         } catch (error) {
           console.error(`Error indexing documentation: ${error}`);
-          
+
           // If there was an indexing error on first search, inform the user
           if (isFirstSearch) {
             return {
@@ -612,9 +621,10 @@ async function searchRepositoryDocumentation({
               content: [
                 {
                   type: "text" as const,
-                  text: `### Search Results for: "${query}"\n\n` +
+                  text:
+                    `### Search Results for: "${query}"\n\n` +
                     `We encountered an issue while indexing the documentation. ` +
-                    `Please try your search again in a moment.`
+                    `Please try your search again in a moment.`,
                 },
               ],
             };
@@ -622,14 +632,15 @@ async function searchRepositoryDocumentation({
         }
       }
     }
-    
+
     // Format search results as text for MCP response, or provide a helpful message if none
     let formattedText;
     if (results.length > 0) {
       formattedText = formatSearchResults(results, query);
     } else {
       // Provide more helpful guidance when no results are found
-      formattedText = `### Search Results for: "${query}"\n\n` +
+      formattedText =
+        `### Search Results for: "${query}"\n\n` +
         `No relevant documentation found for your query. The documentation for this repository has been indexed, ` +
         `but no sections matched your specific search terms.\n\n` +
         `Try:\n` +
@@ -638,7 +649,7 @@ async function searchRepositoryDocumentation({
         `- Checking for basic information like "What is ${repo}?"\n` +
         `- Using common terms like "installation", "tutorial", or "example"\n`;
     }
-    
+
     // Return search results in proper MCP format
     return {
       searchQuery: query,
@@ -656,8 +667,9 @@ async function searchRepositoryDocumentation({
       content: [
         {
           type: "text" as const,
-          text: `### Search Results for: "${query}"\n\n` +
-            `An error occurred while searching the documentation. Please try again later.`
+          text:
+            `### Search Results for: "${query}"\n\n` +
+            `An error occurred while searching the documentation. Please try again later.`,
         },
       ],
     };
@@ -673,24 +685,24 @@ async function searchRepositoryDocumentation({
  */
 function formatSearchResults(
   results: Array<{ chunk: string; score: number }>,
-  query: string
+  query: string,
 ): string {
   let output = `### Search Results for: "${query}"\n\n`;
-  
+
   if (results.length === 0) {
     return output + "No results found.";
   }
-  
+
   // Array to keep track of already displayed entries to avoid duplicates
   const displayedEntries = new Set<string>();
   let resultCount = 0;
-  
+
   results.forEach((result, index) => {
     // Check if this chunk contains multiple documentation entries
     // Documentation entries typically follow the pattern [Title](URL): Description
     const entryPattern = /\[.*?\]\(.*?\):\s*.*?(?=\n\n\[|$)/gs;
     const entries = result.chunk.match(entryPattern);
-    
+
     if (entries && entries.length > 1) {
       // This chunk contains multiple entries, display each one separately
       entries.forEach((entry, entryIndex) => {
@@ -699,19 +711,21 @@ function formatSearchResults(
         if (displayedEntries.has(normalizedEntry)) {
           return;
         }
-        
+
         resultCount++;
         displayedEntries.add(normalizedEntry);
-        
+
         // Add header context if available
-        let headerContext = '';
+        let headerContext = "";
         const headerMatch = result.chunk.match(/^(#+\s+.*?)(?=\n\n)/);
         if (headerMatch) {
-          headerContext = headerMatch[1] + '\n\n';
+          headerContext = headerMatch[1] + "\n\n";
         }
-        
-        output += `#### Result ${resultCount} (Score: ${result.score.toFixed(2)})\n\n${headerContext}${normalizedEntry}\n\n`;
-        
+
+        output += `#### Result ${resultCount} (Score: ${result.score.toFixed(
+          2,
+        )})\n\n${headerContext}${normalizedEntry}\n\n`;
+
         // Add separator if not the last entry
         if (index < results.length - 1 || entryIndex < entries.length - 1) {
           output += "---\n\n";
@@ -720,23 +734,25 @@ function formatSearchResults(
     } else {
       // Single entry or non-standard format, display the whole chunk
       resultCount++;
-      
+
       // Normalize the chunk to avoid duplicates
       const normalizedChunk = result.chunk.trim();
       if (displayedEntries.has(normalizedChunk)) {
         return;
       }
-      
+
       displayedEntries.add(normalizedChunk);
-      
-      output += `#### Result ${resultCount} (Score: ${result.score.toFixed(2)})\n\n${normalizedChunk}\n\n`;
-      
+
+      output += `#### Result ${resultCount} (Score: ${result.score.toFixed(
+        2,
+      )})\n\n${normalizedChunk}\n\n`;
+
       // Add separator if not the last result
       if (index < results.length - 1) {
         output += "---\n\n";
       }
     }
   });
-  
+
   return output;
 }
