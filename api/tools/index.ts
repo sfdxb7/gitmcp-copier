@@ -281,9 +281,9 @@ function generateSearchToolDescription(
     );
 
     if (subdomain && path) {
-      description = `Search documentation from the ${subdomain}/${path} GitHub Pages.`;
+      description = `Semantically search the documentation from the ${subdomain}/${path} GitHub Pages.`;
     } else if (owner && repo) {
-      description = `Search documentation from GitHub repository: ${owner}/${repo}.`;
+      description = `Semantically search documentation from GitHub repository: ${owner}/${repo}.`;
     }
 
     return description;
