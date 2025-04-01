@@ -245,9 +245,9 @@ function generateSearchToolName(
     );
 
     if (subdomain && path) {
-      toolName = `search_${subdomain}_${path}_documentation`;
+      toolName = `search_${path}_documentation`;
     } else if (owner && repo) {
-      toolName = `search_${owner}_${repo}_documentation`;
+      toolName = `search_${repo}_documentation`;
     }
 
     // replace non-alphanumeric characters with underscores
@@ -346,9 +346,9 @@ function generateToolName(requestHost: string, requestUrl?: string): string {
     );
 
     if (subdomain && path) {
-      toolName = `fetch_${subdomain}_${path}_documentation`;
+      toolName = `fetch_${path}_documentation`;
     } else if (owner && repo) {
-      toolName = `fetch_${owner}_${repo}_documentation`;
+      toolName = `fetch_${repo}_documentation`;
     }
 
     // replace non-alphanumeric characters with underscores
