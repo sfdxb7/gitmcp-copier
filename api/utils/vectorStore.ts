@@ -806,79 +806,92 @@ export async function searchDocumentation(
  * @returns Array of text chunks with preserved structure
  */
 export function chunkStructuredDocs(text: string): string[] {
-  // Detect if the content appears to be structured documentation
-  const isStructuredDoc = /\[\S+\]\([^)]+\):.+\n/gm.test(text);
+  // Detect if the content appears to be structured documentation in llms.txt format
+  const isLlmsFormat = /\[[^\]]+\]\([^)]+\):[\s\S]+?(?=\n\n\[|\n\n#|$)/gm.test(text);
   
   // If not structured documentation, use the regular chunking
-  if (!isStructuredDoc) {
+  if (!isLlmsFormat) {
     return chunkText(text);
   }
   
   const chunks: string[] = [];
   
-  // Step 1: Split into main sections based on top-level headings (# Heading)
-  const mainSections = text.split(/(?=^# .*$)/gm);
+  // Step 1: Extract all header sections to build a hierarchy map
+  const headerLines: { level: number; title: string; lineIndex: number }[] = [];
+  const lines = text.split('\n');
   
-  for (const mainSection of mainSections) {
-    if (!mainSection.trim()) continue;
-    
-    // Extract the main section title
-    const mainTitleMatch = mainSection.match(/^# (.*)/);
-    const mainTitle = mainTitleMatch ? mainTitleMatch[1].trim() : "Section";
-    
-    // Step 2: Split into subsections (## Heading)
-    const subsections = mainSection.split(/(?=^## .*$)/gm);
-    
-    let mainIntro = "";
-    
-    // First part might be the main section intro text
-    if (subsections.length > 0 && !subsections[0].startsWith('## ')) {
-      mainIntro = subsections.shift() || "";
-      // Only include intro if it's substantial (not just the title)
-      if (mainIntro.trim() !== `# ${mainTitle}`) {
-        chunks.push(mainIntro.trim());
-      }
-    }
-    
-    for (const subsection of subsections) {
-      if (!subsection.trim()) continue;
-      
-      // Extract the subsection title
-      const subTitleMatch = subsection.match(/^## (.*)/);
-      const subTitle = subTitleMatch ? subTitleMatch[1].trim() : "Subsection";
-      
-      // Step 3: Identify individual documentation entries
-      // Look for pattern: [Link Text](URL): Description
-      const entryPattern = /\[([^\]]+)\]\(([^)]+)\):([\s\S]+?)(?=\n\n\[|$)/g;
-      let match;
-      let entriesFound = false;
-      
-      // Create a chunk with subsection context
-      const subsectionContext = `# ${mainTitle}\n\n## ${subTitle}\n\n`;
-      
-      // Extract entries from this subsection
-      while ((match = entryPattern.exec(subsection)) !== null) {
-        entriesFound = true;
-        const [fullMatch, linkText, url, description] = match;
-        
-        // Create a self-contained chunk with hierarchy context
-        const entryChunk = 
-          `${subsectionContext}[${linkText}](${url}):${description.trim()}`;
-        
-        chunks.push(entryChunk);
-      }
-      
-      // If no entries were found with the pattern, include the whole subsection
-      if (!entriesFound) {
-        const cleanSubsection = subsection.trim();
-        if (cleanSubsection) {
-          chunks.push(cleanSubsection);
-        }
-      }
+  // First pass: identify all headers and their line positions
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const headerMatch = line.match(/^(#{1,6})\s+(.*)/);
+    if (headerMatch) {
+      headerLines.push({
+        level: headerMatch[1].length,
+        title: headerMatch[2].trim(),
+        lineIndex: i
+      });
     }
   }
   
-  // If no chunks were created (parsing failed), fall back to regular chunking
+  // Function to get current header context at a given line index
+  function getHeaderContext(lineIndex: number): string[] {
+    const activeHeaders: { level: number; title: string }[] = [];
+    
+    // Find all headers that apply at this line position
+    for (const header of headerLines) {
+      if (header.lineIndex < lineIndex) {
+        // Replace any existing header at the same level
+        while (activeHeaders.length > 0 && activeHeaders[activeHeaders.length - 1].level >= header.level) {
+          activeHeaders.pop();
+        }
+        activeHeaders.push({ level: header.level, title: header.title });
+      } else if (header.lineIndex > lineIndex) {
+        // We've gone past the current line
+        break;
+      }
+    }
+    
+    // Format the headers as markdown
+    return activeHeaders.map(h => `${'#'.repeat(h.level)} ${h.title}`);
+  }
+  
+  // Step 2: Find all documentation entries and create individual chunks
+  // LLMs.txt format has entries like: [Link Text](URL): Description
+  const entryPattern = /\[([^\]]+)\]\(([^)]+)\):([\s\S]+?)(?=\n\n\[|\n\n#|$)/g;
+  let match;
+  
+  while ((match = entryPattern.exec(text)) !== null) {
+    const [fullMatch, linkText, url, description] = match;
+    const matchIndex = match.index;
+    
+    // Find the line index for this match
+    let lineCount = 0;
+    let currentIndex = 0;
+    while (currentIndex < matchIndex && currentIndex < text.length) {
+      if (text[currentIndex] === '\n') {
+        lineCount++;
+      }
+      currentIndex++;
+    }
+    
+    // Get header context for this entry
+    const headerContext = getHeaderContext(lineCount);
+    
+    // Create a self-contained chunk with proper context hierarchy
+    let entryChunk = '';
+    
+    // Add header context if available
+    if (headerContext.length > 0) {
+      entryChunk = headerContext.join('\n\n') + '\n\n';
+    }
+    
+    // Add the entry itself
+    entryChunk += `[${linkText}](${url}):${description.trim()}`;
+    
+    chunks.push(entryChunk.trim());
+  }
+  
+  // If no entries were found, fall back to regular chunking
   if (chunks.length === 0) {
     return chunkText(text);
   }
