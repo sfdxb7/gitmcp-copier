@@ -227,8 +227,10 @@ function generateToolName(requestHost: string, requestUrl?: string): string {
       }
     }
 
-    return toolName;
+    // replace non-alphanumeric characters with underscores
+    return toolName.replace(/[^a-zA-Z0-9]/g, "_");
   } catch (error) {
+    console.error("Error generating tool name:", error);
     // Return default tool name if there's any error parsing the URL
     return "fetch_documentation";
   }
