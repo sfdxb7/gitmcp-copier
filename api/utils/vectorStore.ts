@@ -256,9 +256,10 @@ const commonWords = new Set([
  * Specialized chunker for README files that preserves heading context with content
  * Ensures logical paragraph groups and sections remain coherent
  * @param text - README text in markdown format
+ * @param fileName - Optional file name to determine special chunking behavior
  * @returns Array of text chunks with preserved structure
  */
-export function chunkReadme(text: string): string[] {
+export function chunkReadme(text: string, fileName?: string): string[] {
   // Check if this appears to be a README format
   const hasMultipleHeadings = (text.match(/^#+\s+.+/gm) || []).length > 1;
   const hasCodeBlocks = text.includes("```");
@@ -269,15 +270,14 @@ export function chunkReadme(text: string): string[] {
     return chunkText(text);
   }
   
+  // Check if this is a special case file (like llms.txt) that needs list-item level chunking
+  const isSpecialListFile = fileName?.toLowerCase().endsWith('llms.txt');
+  
   const chunks: string[] = [];
   
   // Track headers at different levels for context preservation
   let headerStack: string[] = [];
   let currentChunk = "";
-  
-  // Split content by headings, lists, and code blocks while preserving structure
-  const lines = text.split("\n");
-  let i = 0;
   
   // Helper function to detect badge lines (markdown image links with badge URLs)
   function isBadgeLine(line: string): boolean {
@@ -286,6 +286,15 @@ export function chunkReadme(text: string): string[] {
            /!\[.*\]\(.*shield\.io.*\)/.test(line) ||
            /\[!\[.*\]\(.*\)\]\(.*\)/.test(line) && (line.includes('badge') || line.includes('shield'));
   }
+  
+  // Helper function to get the current header context
+  function getCurrentHeaderContext(): string {
+    return headerStack.join("\n\n");
+  }
+  
+  // Split content by headings, lists, and code blocks while preserving structure
+  const lines = text.split("\n");
+  let i = 0;
   
   while (i < lines.length) {
     const line = lines[i];
@@ -314,7 +323,7 @@ export function chunkReadme(text: string): string[] {
       headerStack.push(`${"#".repeat(headerLevel)} ${headerText}`);
       
       // Start a new chunk with header context
-      currentChunk = headerStack.join("\n\n") + "\n\n";
+      currentChunk = getCurrentHeaderContext() + "\n\n";
       
       i++;
     } else {
@@ -369,32 +378,84 @@ export function chunkReadme(text: string): string[] {
         continue;
       }
       
-      // Check for list items - keep lists together
+      // Check for list items
       if (line.trim().match(/^[*\-+] |^\d+\. /)) {
-        // This is a list item, add it
-        currentChunk += line + "\n";
-        i++;
-        
-        // Keep adding lines until we find something that's not a list item or empty line
-        while (i < lines.length) {
-          const nextLine = lines[i];
-          
-          // Skip badge lines in lists
-          if (isBadgeLine(nextLine)) {
-            i++;
-            continue;
+        // Special handling for llms.txt files - create separate chunks for each list item
+        if (isSpecialListFile) {
+          // If we have content already, save it as a chunk before processing list item
+          if (currentChunk.trim().length > 0 && 
+              !currentChunk.trim().endsWith(getCurrentHeaderContext().trim())) {
+            chunks.push(currentChunk.trim());
           }
           
-          // If it's a continuation of the list or empty line between list items
-          if (nextLine.trim() === "" || nextLine.trim().match(/^[*\-+] |^\d+\. /) || 
-              nextLine.trim().startsWith("  ")) {
-            currentChunk += nextLine + "\n";
-            i++;
-          } else {
-            break;
+          // Start a new chunk with header context for this list item
+          let listItemChunk = getCurrentHeaderContext() + "\n\n" + line;
+          i++;
+          
+          // Add indented continuation lines for this specific list item
+          while (i < lines.length) {
+            const nextLine = lines[i].trim();
+            
+            // Skip badge lines
+            if (isBadgeLine(nextLine)) {
+              i++;
+              continue;
+            }
+            
+            // If this is a continuation line (indented or empty)
+            if (nextLine === "" || nextLine.startsWith("  ")) {
+              // Only add non-empty continuation lines
+              if (nextLine !== "") {
+                listItemChunk += "\n" + lines[i];
+              }
+              i++;
+            } else if (!nextLine.match(/^[*\-+] |^\d+\. /)) {
+              // If not a new list item and not indented, it's likely paragraph text
+              // that belongs to this list item
+              listItemChunk += "\n" + lines[i];
+              i++;
+            } else {
+              // This is a new list item, stop here
+              break;
+            }
           }
+          
+          // Add the list item as its own chunk
+          chunks.push(listItemChunk.trim());
+          
+          // Reset current chunk to header context for next content
+          currentChunk = getCurrentHeaderContext() + "\n\n";
+          continue;
+        } else {
+          // For regular markdown files, keep list items with their section
+          // Simply add the list item to the current chunk
+          currentChunk += line + "\n";
+          i++;
+          
+          // Capture the entire list until we reach a non-list item
+          while (i < lines.length) {
+            const nextLine = lines[i].trim();
+            
+            // Skip badge lines
+            if (isBadgeLine(nextLine)) {
+              i++;
+              continue;
+            }
+            
+            // If this is still part of the list (empty line, indented, or new list item)
+            if (nextLine === "" || 
+                nextLine.startsWith("  ") || 
+                nextLine.match(/^[*\-+] |^\d+\. /)) {
+              // Add to the current chunk
+              currentChunk += lines[i] + "\n";
+              i++;
+            } else {
+              // This is no longer part of the list, stop here
+              break;
+            }
+          }
+          continue;
         }
-        continue;
       }
       
       // Regular paragraph content
@@ -406,13 +467,14 @@ export function chunkReadme(text: string): string[] {
         chunks.push(currentChunk.trim());
         
         // Start a new chunk with the current header context
-        currentChunk = headerStack.join("\n\n") + "\n\n";
+        currentChunk = getCurrentHeaderContext() + "\n\n";
       }
     }
   }
   
   // Add any remaining content
-  if (currentChunk.trim().length > 0) {
+  if (currentChunk.trim().length > 0 && 
+      !currentChunk.trim().endsWith(getCurrentHeaderContext().trim())) {
     chunks.push(currentChunk.trim());
   }
   
