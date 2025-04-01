@@ -19,7 +19,11 @@ const VECTOR_TTL = 60 * 60 * 24 * 1;
  * @param chunkIndex - Index of the chunk
  * @returns Unique ID for the vector
  */
-export function getVectorId(owner: string, repo: string, chunkIndex: number): string {
+export function getVectorId(
+  owner: string,
+  repo: string,
+  chunkIndex: number,
+): string {
   return `repo:${owner}:${repo}:chunk:${chunkIndex}`;
 }
 
@@ -32,41 +36,42 @@ export function getVectorId(owner: string, repo: string, chunkIndex: number): st
 export async function getEmbeddings(text: string): Promise<number[]> {
   // This is an improved embedding function that creates a better vector representation
   // Still simple but designed to create more topical differentiation
-  
+
   // Create a vector with 1024 dimensions to match Upstash Vector requirements
   const view = new Float32Array(1024);
-  
+
   // Extract key terms and topics from the text
   const keywordExtraction = extractKeywords(text);
-  
+
   // Use a more sophisticated hash function that weights important terms
   const termWeights = keywordExtraction.reduce((acc, item) => {
     acc[item.term] = item.score;
     return acc;
-  }, {} as {[key: string]: number});
-  
+  }, {} as { [key: string]: number });
+
   // Fill the vector with values based on term importance and positions
   const terms = Object.keys(termWeights);
-  
+
   // Fill base vector with simple hash
   for (let i = 0; i < view.length; i++) {
     // Simple hash function for demo purposes
     let hash = 0;
-    for (let j = 0; j < text.length; j += 10) { // Sample text at intervals
-      hash = ((hash << 5) - hash) + text.charCodeAt(j) + i;
+    for (let j = 0; j < text.length; j += 10) {
+      // Sample text at intervals
+      hash = (hash << 5) - hash + text.charCodeAt(j) + i;
       hash = hash & hash; // Convert to 32bit integer
     }
     // Normalize between -0.5 and 0.5 (base values)
     view[i] = (hash % 100) / 200;
   }
-  
+
   // Enhance with keyword features
   for (const term of terms) {
     // Use term to seed a portion of the vector
     const weight = termWeights[term];
     const termHash = simpleHash(term);
     const startPos = termHash % 900; // Avoid last section
-    
+
     // Enhance specific positions based on term
     for (let i = 0; i < Math.min(term.length * 4, 50); i++) {
       const pos = (startPos + i * 3) % 900;
@@ -74,64 +79,67 @@ export async function getEmbeddings(text: string): Promise<number[]> {
       view[pos] += weight * 0.5 * (Math.sin(termHash + i) * 0.5 + 0.5);
     }
   }
-  
+
   // Add query-specific features in the last section of the vector
   addTopicFeatures(view, text);
-  
+
   // Normalize vector to unit length (important for cosine similarity)
   normalizeVector(view);
-  
+
   return Array.from(view);
 }
 
 /**
  * Extract keywords and their importance from text
  */
-function extractKeywords(text: string): Array<{term: string, score: number}> {
-  const results: Array<{term: string, score: number}> = [];
-  const words = text.toLowerCase().split(/\W+/).filter(w => w.length > 3);
-  
+function extractKeywords(text: string): Array<{ term: string; score: number }> {
+  const results: Array<{ term: string; score: number }> = [];
+  const words = text
+    .toLowerCase()
+    .split(/\W+/)
+    .filter((w) => w.length > 3);
+
   // Count word frequencies
-  const wordCounts: {[key: string]: number} = {};
+  const wordCounts: { [key: string]: number } = {};
   for (const word of words) {
     wordCounts[word] = (wordCounts[word] || 0) + 1;
   }
-  
+
   // Find interesting terms (high frequency or within heading patterns)
   const headings = text.match(/#{1,6}\s+([^\n]+)/g) || [];
   const headingTerms = new Set<string>();
-  
+
   // Extract terms from headings with higher weight
   for (const heading of headings) {
-    const cleanHeading = heading.replace(/^#+\s+/, '').toLowerCase();
-    const terms = cleanHeading.split(/\W+/).filter(w => w.length > 3);
-    terms.forEach(t => headingTerms.add(t));
+    const cleanHeading = heading.replace(/^#+\s+/, "").toLowerCase();
+    const terms = cleanHeading.split(/\W+/).filter((w) => w.length > 3);
+    terms.forEach((t) => headingTerms.add(t));
   }
-  
+
   // Calculate term scores based on frequency and position
   const totalWords = words.length;
-  
+
   for (const word in wordCounts) {
     // Skip common words or very rare words
     if (commonWords.has(word) || wordCounts[word] < 2) continue;
-    
+
     // Calculate score based on frequency
     let score = wordCounts[word] / totalWords;
-    
+
     // Boost score for terms in headings
     if (headingTerms.has(word)) {
       score *= 3;
     }
-    
+
     // Boost for terms in the first paragraph (likely important)
-    const firstPara = text.split('\n\n')[0].toLowerCase();
+    const firstPara = text.split("\n\n")[0].toLowerCase();
     if (firstPara.includes(word)) {
       score *= 1.5;
     }
-    
+
     results.push({ term: word, score });
   }
-  
+
   // Sort by score and take top 20
   results.sort((a, b) => b.score - a.score);
   return results.slice(0, 20);
@@ -150,9 +158,9 @@ function addTopicFeatures(vector: Float32Array, text: string): void {
     /\bdocker\b.*\b(install|run|setup|compose)\b/i,
     /\b(maven|gradle)\b.*\b(dependency|install|import)\b/i,
     /\bnpm install\b|\byarn add\b|\bpip install\b/i,
-    /\brequirements\b|\bprerequisites\b/i
+    /\brequirements\b|\bprerequisites\b/i,
   ];
-  
+
   // Check for installation-specific content
   let installationScore = 0;
   for (const pattern of installationPatterns) {
@@ -160,25 +168,41 @@ function addTopicFeatures(vector: Float32Array, text: string): void {
       installationScore += 0.3; // Higher than regular topics
     }
   }
-  
+
   // If this is clearly installation content, significantly boost specific vector dimensions
   if (installationScore > 0) {
     for (let i = 950; i < 960; i++) {
       vector[i] += installationScore;
     }
   }
-  
+
   // Regular topic patterns with normal weights
   const topics = [
-    { pattern: /\binstall|setup|deploy|configuration|configure\b/i, position: 950, weight: 0.7 },
-    { pattern: /\bdocker|container|kubernetes|k8s\b/i, position: 960, weight: 0.7 },
+    {
+      pattern: /\binstall|setup|deploy|configuration|configure\b/i,
+      position: 950,
+      weight: 0.7,
+    },
+    {
+      pattern: /\bdocker|container|kubernetes|k8s\b/i,
+      position: 960,
+      weight: 0.7,
+    },
     { pattern: /\bjava|spring|hibernate|jpa\b/i, position: 970, weight: 0.6 },
-    { pattern: /\bquery|sql|database|mongodb|repository\b/i, position: 980, weight: 0.6 },
-    { pattern: /\btutorial|guide|example|how to\b/i, position: 990, weight: 0.7 },
+    {
+      pattern: /\bquery|sql|database|mongodb|repository\b/i,
+      position: 980,
+      weight: 0.6,
+    },
+    {
+      pattern: /\btutorial|guide|example|how to\b/i,
+      position: 990,
+      weight: 0.7,
+    },
     { pattern: /\berror|problem|issue|debug\b/i, position: 1000, weight: 0.5 },
-    { pattern: /\bapi|rest|endpoint|url\b/i, position: 1010, weight: 0.5 }
+    { pattern: /\bapi|rest|endpoint|url\b/i, position: 1010, weight: 0.5 },
   ];
-  
+
   // Enhance specific positions based on detected topics
   for (const topic of topics) {
     const matches = text.match(topic.pattern);
@@ -190,18 +214,19 @@ function addTopicFeatures(vector: Float32Array, text: string): void {
       }
     }
   }
-  
+
   // Detect code blocks which often contain installation commands
   const codeBlockPattern = /```[a-z]*\n[\s\S]+?\n```/gi;
   const codeBlocks = text.match(codeBlockPattern) || [];
-  
+
   if (codeBlocks.length > 0) {
     // Check if any code blocks contain installation/setup commands
-    const installCommands = codeBlocks.some(block => 
-      /\b(npm|yarn|pip|mvn|gradle|docker|apt|yum|brew)\b/i.test(block) ||
-      /\binstall\b|\bsetup\b|\bbuild\b|\bcompile\b/i.test(block)
+    const installCommands = codeBlocks.some(
+      (block) =>
+        /\b(npm|yarn|pip|mvn|gradle|docker|apt|yum|brew)\b/i.test(block) ||
+        /\binstall\b|\bsetup\b|\bbuild\b|\bcompile\b/i.test(block),
     );
-    
+
     if (installCommands) {
       // Significantly boost installation-related dimensions
       for (let i = 950; i < 960; i++) {
@@ -221,7 +246,7 @@ function normalizeVector(vector: Float32Array): void {
     magnitude += vector[i] * vector[i];
   }
   magnitude = Math.sqrt(magnitude);
-  
+
   // Normalize if magnitude isn't zero
   if (magnitude > 0) {
     for (let i = 0; i < vector.length; i++) {
@@ -236,7 +261,7 @@ function normalizeVector(vector: Float32Array): void {
 function simpleHash(str: string): number {
   let hash = 0;
   for (let i = 0; i < str.length; i++) {
-    hash = ((hash << 5) - hash) + str.charCodeAt(i);
+    hash = (hash << 5) - hash + str.charCodeAt(i);
     hash = hash & hash; // Convert to 32bit integer
   }
   return Math.abs(hash);
@@ -246,10 +271,42 @@ function simpleHash(str: string): number {
  * Common English words to filter out
  */
 const commonWords = new Set([
-  'the', 'and', 'that', 'have', 'for', 'not', 'with', 'you', 'this', 'but',
-  'from', 'they', 'would', 'there', 'their', 'what', 'about', 'which', 'when',
-  'will', 'there', 'their', 'your', 'some', 'them', 'other', 'than', 'then',
-  'into', 'could', 'because', 'been', 'more', 'these', 'those', 'only'
+  "the",
+  "and",
+  "that",
+  "have",
+  "for",
+  "not",
+  "with",
+  "you",
+  "this",
+  "but",
+  "from",
+  "they",
+  "would",
+  "there",
+  "their",
+  "what",
+  "about",
+  "which",
+  "when",
+  "will",
+  "there",
+  "their",
+  "your",
+  "some",
+  "them",
+  "other",
+  "than",
+  "then",
+  "into",
+  "could",
+  "because",
+  "been",
+  "more",
+  "these",
+  "those",
+  "only",
 ]);
 
 /**
@@ -263,80 +320,92 @@ export function chunkReadme(text: string, fileName?: string): string[] {
   // Check if this appears to be a README format
   const hasMultipleHeadings = (text.match(/^#+\s+.+/gm) || []).length > 1;
   const hasCodeBlocks = text.includes("```");
-  const isReadmeLike = hasMultipleHeadings && (hasCodeBlocks || text.includes("* ") || text.includes("- "));
-  
+  const isReadmeLike =
+    hasMultipleHeadings &&
+    (hasCodeBlocks || text.includes("* ") || text.includes("- "));
+
   // If not README-like, use the regular chunking
   if (!isReadmeLike) {
     return chunkText(text);
   }
-  
+
   // Check if this is a special case file (like llms.txt) that needs list-item level chunking
-  const isSpecialListFile = fileName?.toLowerCase().includes('llms.txt');
-  
+  const isSpecialListFile = fileName?.toLowerCase().includes("llms.txt");
+
   const chunks: string[] = [];
-  
+
   // Track headers at different levels for context preservation
   let headerStack: string[] = [];
   let currentChunk = "";
-  
+
   // Helper function to detect badge lines (markdown image links with badge URLs)
   function isBadgeLine(line: string): boolean {
     // Detect badge-specific patterns (shield.io, badge URLs, image links in a row)
-    return /!\[.*\]\(.*badge.*\)/.test(line) || 
-           /!\[.*\]\(.*shield\.io.*\)/.test(line) ||
-           /\[!\[.*\]\(.*\)\]\(.*\)/.test(line) && (line.includes('badge') || line.includes('shield'));
+    return (
+      /!\[.*\]\(.*badge.*\)/.test(line) ||
+      /!\[.*\]\(.*shield\.io.*\)/.test(line) ||
+      (/\[!\[.*\]\(.*\)\]\(.*\)/.test(line) &&
+        (line.includes("badge") || line.includes("shield")))
+    );
   }
-  
+
   // Helper function to get the current header context
   function getCurrentHeaderContext(): string {
     return headerStack.join("\n\n");
   }
-  
+
   // Split content by headings, lists, and code blocks while preserving structure
   const lines = text.split("\n");
   let i = 0;
-  
+
   while (i < lines.length) {
     const line = lines[i];
-    
+
     // Skip badge lines completely - don't include them in any chunk
     if (isBadgeLine(line)) {
       i++;
       continue;
     }
-    
+
     // Check if this is a heading line
     const headerMatch = line.match(/^(#{1,6})\s+(.+)/);
-    
+
     if (headerMatch) {
       // This is a heading, which means it's a section boundary
       const headerLevel = headerMatch[1].length;
       const headerText = headerMatch[2];
-      
+
       // Before processing the new header, add any existing content as a chunk
       if (currentChunk.trim().length > 0) {
         chunks.push(currentChunk.trim());
       }
-      
+
       // Update header context based on level
       headerStack = headerStack.slice(0, headerLevel - 1);
       headerStack.push(`${"#".repeat(headerLevel)} ${headerText}`);
-      
+
       // Start a new chunk with header context
       currentChunk = getCurrentHeaderContext() + "\n\n";
-      
+
       i++;
     } else {
       // This is regular content or a special element (list, code block, etc.)
-      
+
       // Handle HTML image/link tags that might be badges
-      if (line.includes('<img') && (line.includes('badge') || line.includes('shield'))) {
+      if (
+        line.includes("<img") &&
+        (line.includes("badge") || line.includes("shield"))
+      ) {
         i++;
         continue;
       }
-      
+
       // Skip consecutive badge or shield lines that might be in a group
-      if (line.includes('](') && i + 1 < lines.length && isBadgeLine(lines[i + 1])) {
+      if (
+        line.includes("](") &&
+        i + 1 < lines.length &&
+        isBadgeLine(lines[i + 1])
+      ) {
         let allBadges = true;
         // Look ahead to see if this is part of a badge group
         for (let j = i; j < Math.min(i + 5, lines.length); j++) {
@@ -345,13 +414,13 @@ export function chunkReadme(text: string, fileName?: string): string[] {
             break;
           }
         }
-        
+
         if (allBadges) {
           i++;
           continue;
         }
       }
-      
+
       // Group together consecutive paragraphs that belong together
       if (line.trim() === "") {
         // Empty line - add a paragraph break
@@ -359,13 +428,13 @@ export function chunkReadme(text: string, fileName?: string): string[] {
         i++;
         continue;
       }
-      
+
       // Check for the start of a code block
       if (line.trim().startsWith("```")) {
         // Include the entire code block in the current chunk
         currentChunk += line + "\n";
         i++;
-        
+
         // Keep adding lines until we find the end of the code block
         while (i < lines.length) {
           currentChunk += lines[i] + "\n";
@@ -377,31 +446,33 @@ export function chunkReadme(text: string, fileName?: string): string[] {
         i++;
         continue;
       }
-      
+
       // Check for list items
       if (line.trim().match(/^[*\-+] |^\d+\. /)) {
         // Special handling for llms.txt files - create separate chunks for each list item
         if (isSpecialListFile) {
           // If we have content already, save it as a chunk before processing list item
-          if (currentChunk.trim().length > 0 && 
-              !currentChunk.trim().endsWith(getCurrentHeaderContext().trim())) {
+          if (
+            currentChunk.trim().length > 0 &&
+            !currentChunk.trim().endsWith(getCurrentHeaderContext().trim())
+          ) {
             chunks.push(currentChunk.trim());
           }
-          
+
           // Start a new chunk with header context for this list item
           let listItemChunk = getCurrentHeaderContext() + "\n\n" + line;
           i++;
-          
+
           // Add indented continuation lines for this specific list item
           while (i < lines.length) {
             const nextLine = lines[i].trim();
-            
+
             // Skip badge lines
             if (isBadgeLine(nextLine)) {
               i++;
               continue;
             }
-            
+
             // If this is a continuation line (indented or empty)
             if (nextLine === "" || nextLine.startsWith("  ")) {
               // Only add non-empty continuation lines
@@ -419,10 +490,10 @@ export function chunkReadme(text: string, fileName?: string): string[] {
               break;
             }
           }
-          
+
           // Add the list item as its own chunk
           chunks.push(listItemChunk.trim());
-          
+
           // Reset current chunk to header context for next content
           currentChunk = getCurrentHeaderContext() + "\n\n";
           continue;
@@ -431,21 +502,23 @@ export function chunkReadme(text: string, fileName?: string): string[] {
           // Simply add the list item to the current chunk and collect the entire list
           currentChunk += line + "\n";
           i++;
-          
+
           // Capture the entire list until we reach a non-list item
           while (i < lines.length) {
             const nextLine = lines[i].trim();
-            
+
             // Skip badge lines
             if (isBadgeLine(nextLine)) {
               i++;
               continue;
             }
-            
+
             // If this is still part of the list (empty line, indented, or new list item)
-            if (nextLine === "" || 
-                nextLine.startsWith("  ") || 
-                nextLine.match(/^[*\-+] |^\d+\. /)) {
+            if (
+              nextLine === "" ||
+              nextLine.startsWith("  ") ||
+              nextLine.match(/^[*\-+] |^\d+\. /)
+            ) {
               // Add to the current chunk
               currentChunk += lines[i] + "\n";
               i++;
@@ -457,27 +530,29 @@ export function chunkReadme(text: string, fileName?: string): string[] {
           continue;
         }
       }
-      
+
       // Regular paragraph content
       currentChunk += line + "\n";
       i++;
-      
+
       // Detect chunks that are getting too large (over 2000 chars)
       if (currentChunk.length > 2000 && currentChunk.trim().endsWith(".")) {
         chunks.push(currentChunk.trim());
-        
+
         // Start a new chunk with the current header context
         currentChunk = getCurrentHeaderContext() + "\n\n";
       }
     }
   }
-  
+
   // Add any remaining content
-  if (currentChunk.trim().length > 0 && 
-      !currentChunk.trim().endsWith(getCurrentHeaderContext().trim())) {
+  if (
+    currentChunk.trim().length > 0 &&
+    !currentChunk.trim().endsWith(getCurrentHeaderContext().trim())
+  ) {
     chunks.push(currentChunk.trim());
   }
-  
+
   return chunks;
 }
 
@@ -490,7 +565,7 @@ export function chunkReadme(text: string, fileName?: string): string[] {
  */
 export function chunkDocumentation(text: string, fileName?: string): string[] {
   // First check if this is a structured document with list items (like llms.txt)
-  if (fileName?.toLowerCase().includes('llms.txt')) {
+  if (fileName?.toLowerCase().includes("llms.txt")) {
     try {
       // For llms.txt files, each list item should be treated as its own chunk
       // with section header context
@@ -499,10 +574,12 @@ export function chunkDocumentation(text: string, fileName?: string): string[] {
         return structuredChunks;
       }
     } catch (error) {
-      console.warn("Structured documentation chunking failed for llms.txt, trying README chunker");
+      console.warn(
+        "Structured documentation chunking failed for llms.txt, trying README chunker",
+      );
     }
   }
-  
+
   // Then try README-specific chunking
   try {
     const readmeChunks = chunkReadme(text, fileName);
@@ -512,7 +589,7 @@ export function chunkDocumentation(text: string, fileName?: string): string[] {
   } catch (error) {
     console.warn("README chunking failed, trying next chunker");
   }
-  
+
   // Then try structured documentation chunking as fallback
   try {
     const structuredChunks = chunkStructuredDocs(text);
@@ -520,9 +597,11 @@ export function chunkDocumentation(text: string, fileName?: string): string[] {
       return structuredChunks;
     }
   } catch (error) {
-    console.warn("Structured documentation chunking failed, falling back to default chunker");
+    console.warn(
+      "Structured documentation chunking failed, falling back to default chunker",
+    );
   }
-  
+
   // Fall back to the regular chunking algorithm
   return chunkText(text);
 }
@@ -538,30 +617,32 @@ export function chunkDocumentation(text: string, fileName?: string): string[] {
 export function chunkText(
   text: string,
   maxChunkSize: number = 1500,
-  minChunkSize: number = 500
+  minChunkSize: number = 500,
 ): string[] {
   const chunks: string[] = [];
-  
+
   // Split by markdown headings (## Heading)
   const headingPattern = /\n(#{1,6}\s+[^\n]+)\n/g;
   const sections = text.split(headingPattern);
-  
+
   let currentChunk = "";
   let headingText = "";
-  
+
   // Process each section
   for (let i = 0; i < sections.length; i++) {
     const section = sections[i];
-    
+
     // Check if this is a heading
     if (i > 0 && i % 2 === 1) {
       headingText = section.trim();
       continue;
     }
-    
+
     // This is content - process it with the preceding heading
-    const contentWithHeading = headingText ? `${headingText}\n\n${section}` : section;
-    
+    const contentWithHeading = headingText
+      ? `${headingText}\n\n${section}`
+      : section;
+
     // If content is short enough, add as single chunk
     if (contentWithHeading.length <= maxChunkSize) {
       if (contentWithHeading.trim().length > 0) {
@@ -570,20 +651,23 @@ export function chunkText(
       headingText = "";
       continue;
     }
-    
+
     // If content is long, split by paragraphs
     const paragraphs = contentWithHeading.split(/\n\n+/);
-    
+
     currentChunk = "";
-    
+
     for (const paragraph of paragraphs) {
       const trimmedParagraph = paragraph.trim();
-      
+
       // Skip empty paragraphs
       if (!trimmedParagraph) continue;
-      
+
       // If adding this paragraph would exceed max size and we already have content
-      if (currentChunk && currentChunk.length + trimmedParagraph.length + 2 > maxChunkSize) {
+      if (
+        currentChunk &&
+        currentChunk.length + trimmedParagraph.length + 2 > maxChunkSize
+      ) {
         // Only add the chunk if it meets minimum size
         if (currentChunk.length >= minChunkSize) {
           chunks.push(currentChunk.trim());
@@ -601,15 +685,15 @@ export function chunkText(
         }
       }
     }
-    
+
     // Add final chunk from section if it has content
     if (currentChunk.trim().length >= minChunkSize) {
       chunks.push(currentChunk.trim());
     }
-    
+
     headingText = "";
   }
-  
+
   return chunks;
 }
 
@@ -619,7 +703,7 @@ interface VectorMetadata {
   owner: string;
   repo: string;
   chunkIndex: number;
-  [key: string]: any;  // Add index signature to make it compatible with Dict
+  [key: string]: any; // Add index signature to make it compatible with Dict
 }
 
 /**
@@ -635,40 +719,42 @@ export async function storeDocumentationVectors(
   owner: string,
   repo: string,
   content: string,
-  fileName: string
+  fileName: string,
 ): Promise<number> {
   try {
     console.log(`Storing vectors for ${owner}/${repo}`);
-    
+
     // First delete any existing vectors for this repo
     try {
       // Generate pattern matching IDs for this repo
       const prefix = `repo:${owner}:${repo}`;
-      
+
       try {
         // Delete any vectors with IDs starting with our prefix
         await vector.delete(`${prefix}*`);
         console.log(`Deleted existing vectors for ${owner}/${repo}`);
       } catch (error) {
-        console.log(`No existing vectors found for ${owner}/${repo} or error deleting`);
+        console.log(
+          `No existing vectors found for ${owner}/${repo} or error deleting`,
+        );
       }
     } catch (error) {
       // Ignore errors if vectors don't exist
       console.log(`Error managing existing vectors: ${error}`);
     }
-    
+
     // Use specialized documentation chunking for better results
     const chunks = chunkDocumentation(content, fileName);
     console.log(`Created ${chunks.length} chunks for ${owner}/${repo}`);
-    
+
     // Generate embeddings and upsert vectors
     const vectors = [];
-    
+
     for (let i = 0; i < chunks.length; i++) {
       const chunk = chunks[i];
       const embedding = await getEmbeddings(chunk);
       const id = getVectorId(owner, repo, i);
-      
+
       vectors.push({
         id,
         vector: embedding,
@@ -677,20 +763,20 @@ export async function storeDocumentationVectors(
           owner,
           repo,
           chunkIndex: i,
-        } as Dict,  // Cast to Dict type to ensure compatibility
+        } as Dict, // Cast to Dict type to ensure compatibility
       });
     }
-    
+
     // Upsert vectors one by one
     for (const vector_item of vectors) {
       await vector.upsert({
         id: vector_item.id,
         vector: vector_item.vector,
-        metadata: vector_item.metadata as Dict
+        metadata: vector_item.metadata as Dict,
       });
     }
     console.log(`Stored ${vectors.length} vectors for ${owner}/${repo}`);
-    
+
     return vectors.length;
   } catch (error) {
     console.error(`Error storing vectors for ${owner}/${repo}:`, error);
@@ -706,44 +792,59 @@ function calculateKeywordMatchScore(text: string, query: string): number {
   // Lower-case for case-insensitive matching
   const lowerText = text.toLowerCase();
   const lowerQuery = query.toLowerCase();
-  
+
   // Detect query intent
-  const isInstallationQuery = /\bhow\b.*\binstall\b|\bsetup\b|\binstallation\b/i.test(lowerQuery);
-  const isUsageQuery = /\bhow\b.*\buse\b|\busage\b|\bexample\b/i.test(lowerQuery);
-  const isErrorQuery = /\berror\b|\bissue\b|\bproblem\b|\bfail\b/i.test(lowerQuery);
-  
+  const isInstallationQuery =
+    /\bhow\b.*\binstall\b|\bsetup\b|\binstallation\b/i.test(lowerQuery);
+  const isUsageQuery = /\bhow\b.*\buse\b|\busage\b|\bexample\b/i.test(
+    lowerQuery,
+  );
+  const isErrorQuery = /\berror\b|\bissue\b|\bproblem\b|\bfail\b/i.test(
+    lowerQuery,
+  );
+
   let score = 0;
-  
+
   // Penalize license sections, which are rarely relevant
-  if (/^#+\s+license\b/im.test(text) || text.toLowerCase().includes('mit license')) {
+  if (
+    /^#+\s+license\b/im.test(text) ||
+    text.toLowerCase().includes("mit license")
+  ) {
     score -= 0.3;
   }
-  
+
   // Penalize badge sections which are usually not informative for queries
-  if (/\]\(https?:\/\/[^)]*badge[^)]*\)/i.test(text) && text.split('\n').length < 8) {
+  if (
+    /\]\(https?:\/\/[^)]*badge[^)]*\)/i.test(text) &&
+    text.split("\n").length < 8
+  ) {
     score -= 0.2;
   }
-  
+
   // Boost sections that likely contain actual information
-  if (/^#+\s+(what is|getting started|introduction|usage|examples|installation)/im.test(text)) {
+  if (
+    /^#+\s+(what is|getting started|introduction|usage|examples|installation)/im.test(
+      text,
+    )
+  ) {
     score += 0.3;
   }
-  
+
   // Extract terms from query (removing stop words)
-  const queryTerms = lowerQuery.split(/\W+/).filter(
-    term => term.length > 2 && !commonWords.has(term)
-  );
-  
+  const queryTerms = lowerQuery
+    .split(/\W+/)
+    .filter((term) => term.length > 2 && !commonWords.has(term));
+
   // Count term occurrences in text
   for (const term of queryTerms) {
     // Use regex to find whole word matches
-    const regex = new RegExp(`\\b${term}\\b`, 'gi');
+    const regex = new RegExp(`\\b${term}\\b`, "gi");
     const matches = lowerText.match(regex) || [];
-    
+
     // Add score based on frequency
     score += matches.length * 0.05;
   }
-  
+
   // Boost for heading matches (much higher boost than before)
   const headings = text.match(/#{1,6}\s+([^\n]+)/g) || [];
   for (const heading of headings) {
@@ -754,55 +855,59 @@ function calculateKeywordMatchScore(text: string, query: string): number {
       }
     }
   }
-  
+
   // Intent-specific pattern matching
   if (isInstallationQuery) {
     // Check for installation instructions
     if (/\binstall\b.*\b(steps|guide|instructions)\b/i.test(lowerText)) {
       score += 0.3;
     }
-    
+
     // Check for package manager commands
-    if (/\bnpm install\b|\byarn add\b|\bpip install\b|\bapt-get\b/i.test(lowerText)) {
+    if (
+      /\bnpm install\b|\byarn add\b|\bpip install\b|\bapt-get\b/i.test(
+        lowerText,
+      )
+    ) {
       score += 0.4;
     }
-    
+
     // Check for docker setup
     if (/\bdocker\b.*\b(install|run|compose)\b/i.test(lowerText)) {
       score += 0.3;
     }
-    
+
     // Check for build tool commands
     if (/\bmvn\b|\bgradle\b|\bmaven\b/i.test(lowerText)) {
       score += 0.25;
     }
   }
-  
+
   // Check for query term proximity (terms appearing close together)
   if (queryTerms.length > 1) {
     // Find all occurrences of first query term
     for (let i = 0; i < lowerText.length; i++) {
       const termIndex = lowerText.indexOf(queryTerms[0], i);
       if (termIndex === -1) break;
-      
+
       // Look for other query terms within 50 chars
       const proximityWindow = lowerText.substring(termIndex, termIndex + 100);
       let proximityMatches = 0;
-      
+
       for (let j = 1; j < queryTerms.length; j++) {
         if (proximityWindow.includes(queryTerms[j])) {
           proximityMatches++;
         }
       }
-      
+
       // Add score based on proximity matches
       score += (proximityMatches / (queryTerms.length - 1)) * 0.15;
-      
+
       // Move past this occurrence
       i = termIndex;
     }
   }
-  
+
   return score;
 }
 
@@ -819,58 +924,58 @@ export async function searchDocumentation(
   owner: string,
   repo: string,
   query: string,
-  limit: number = 5
+  limit: number = 5,
 ): Promise<Array<{ chunk: string; score: number }>> {
   try {
     const queryEmbedding = await getEmbeddings(query);
-    
+
     // Query vectors without using filter prefix
     const results = await vector.query({
       vector: queryEmbedding,
       topK: limit * 3, // Query more results than needed
       includeMetadata: true,
     });
-    
+
     if (!results || !Array.isArray(results)) {
       return [];
     }
-    
+
     // Filter results by owner and repo manually
-    const filteredResults = results.filter(result => {
+    const filteredResults = results.filter((result) => {
       const metadata = result.metadata as Dict;
       return metadata?.owner === owner && metadata?.repo === repo;
     });
-    
+
     // Enhanced ranking: combine vector similarity with keyword matching
-    const enhancedResults = filteredResults.map(result => {
+    const enhancedResults = filteredResults.map((result) => {
       const metadata = result.metadata as Dict;
       const chunk = metadata?.chunk || "";
-      
+
       // Calculate keyword match score
       const keywordScore = calculateKeywordMatchScore(chunk, query);
-      
+
       // Combine scores (vector similarity + keyword matching)
       // Normalize vector similarity from [-1,1] to [0,1] range
       const normalizedVectorScore = (result.score + 1) / 2;
-      
+
       // Combined score gives weight to both vector similarity and keyword matches
-      const combinedScore = (normalizedVectorScore * 0.6) + (keywordScore * 0.4);
-      
+      const combinedScore = normalizedVectorScore * 0.6 + keywordScore * 0.4;
+
       return {
         chunk,
         vectorScore: result.score,
         keywordScore,
-        combinedScore
+        combinedScore,
       };
     });
-    
+
     // Sort by combined score
     enhancedResults.sort((a, b) => b.combinedScore - a.combinedScore);
-    
+
     // Return with the combined score for better differentiation
-    return enhancedResults.slice(0, limit).map(result => ({
+    return enhancedResults.slice(0, limit).map((result) => ({
       chunk: result.chunk,
-      score: result.combinedScore
+      score: result.combinedScore,
     }));
   } catch (error) {
     console.error(`Error searching documentation for ${owner}/${repo}:`, error);
@@ -886,124 +991,135 @@ export async function searchDocumentation(
  */
 export function chunkStructuredDocs(text: string, fileName?: string): string[] {
   // Check if this is a special llms.txt file that needs list-item level chunking
-//   const isLlmsFile = fileName?.toLowerCase().includes('llms.txt');
-  
-//   // Quick check to see if this looks like structured documentation
-//   // Check for both link patterns: [title](url) and nested list items with links
-//   const hasLinkPatterns = /\[.+?\]\(.+?\)/.test(text);
-//   const hasListItems = /^[-*]\s+/.test(text);
-  
-//   // For llms.txt files, we want to process them even if they don't have link patterns
-//   // as long as they have list items
-//   if (!isLlmsFile && !hasLinkPatterns) {
-//     return chunkText(text);
-//   }
-  
-//   // For non-llms files that don't have link patterns or list items, use regular chunking
-//   if (!isLlmsFile && !hasLinkPatterns && !hasListItems) {
-//     return chunkText(text);
-//   }
-  
+  //   const isLlmsFile = fileName?.toLowerCase().includes('llms.txt');
+
+  //   // Quick check to see if this looks like structured documentation
+  //   // Check for both link patterns: [title](url) and nested list items with links
+  //   const hasLinkPatterns = /\[.+?\]\(.+?\)/.test(text);
+  //   const hasListItems = /^[-*]\s+/.test(text);
+
+  //   // For llms.txt files, we want to process them even if they don't have link patterns
+  //   // as long as they have list items
+  //   if (!isLlmsFile && !hasLinkPatterns) {
+  //     return chunkText(text);
+  //   }
+
+  //   // For non-llms files that don't have link patterns or list items, use regular chunking
+  //   if (!isLlmsFile && !hasLinkPatterns && !hasListItems) {
+  //     return chunkText(text);
+  //   }
+
   const chunks: string[] = [];
-  const lines = text.split('\n');
-  
+  const lines = text.split("\n");
+
   // Step 1: Extract all headers and build a header hierarchy
   interface HeaderInfo {
     level: number;
     title: string;
     lineIndex: number;
   }
-  
+
   const headers: HeaderInfo[] = [];
-  
+
   lines.forEach((line, index) => {
     const headerMatch = line.match(/^(#{1,6})\s+(.*)/);
     if (headerMatch) {
       headers.push({
         level: headerMatch[1].length,
         title: headerMatch[2].trim(),
-        lineIndex: index
+        lineIndex: index,
       });
     }
   });
-  
+
   // If there's at least one header, create a chunk with the document title and description
   if (headers.length > 0) {
     const mainHeader = headers[0];
     let mainDescription = "";
-    
+
     // Collect the main description until we hit another header or a blank line followed by a list item
     for (let i = mainHeader.lineIndex + 1; i < lines.length; i++) {
       const line = lines[i].trim();
-      
+
       // Stop if we hit another header
       if (line.match(/^#{1,6}\s+/)) break;
-      
+
       // Stop if we hit a blank line followed by a list item
-      if (line === "" && i + 1 < lines.length && 
-          (lines[i+1].trim().startsWith("- ") || lines[i+1].trim().startsWith("* "))) break;
-      
+      if (
+        line === "" &&
+        i + 1 < lines.length &&
+        (lines[i + 1].trim().startsWith("- ") ||
+          lines[i + 1].trim().startsWith("* "))
+      )
+        break;
+
       if (line !== "") {
-        mainDescription += (mainDescription ? "\n" + line : line);
+        mainDescription += mainDescription ? "\n" + line : line;
       }
     }
-    
+
     // Create a chunk with main title and description
     if (mainDescription) {
       chunks.push(`# ${mainHeader.title}\n\n${mainDescription}`);
     }
   }
-  
+
   // Find the current section header for context
   const getCurrentHeader = (lineIndex: number): string => {
     let headerContext = "";
     let currentHeaderLevel = Number.MAX_SAFE_INTEGER;
-    
+
     for (const header of headers) {
       if (header.lineIndex < lineIndex && header.level <= currentHeaderLevel) {
-        headerContext = `${'#'.repeat(header.level)} ${header.title}`;
+        headerContext = `${"#".repeat(header.level)} ${header.title}`;
         currentHeaderLevel = header.level;
-        
+
         // If it's the main h1 header, we don't need to go further
         // This ensures we get the nearest section header, not the document title
-        if (header.level === 1 && headers.some(h => h.level === 2 && h.lineIndex < lineIndex)) {
+        if (
+          header.level === 1 &&
+          headers.some((h) => h.level === 2 && h.lineIndex < lineIndex)
+        ) {
           continue;
         }
-        
+
         // We found a direct section header (h2 or h3)
         if (header.level === 2 || header.level === 3) {
           break;
         }
       }
     }
-    
+
     return headerContext;
   };
-  
+
   // Step 2: Process each list item as its own chunk with section context
   let i = 0;
   while (i < lines.length) {
     const line = lines[i].trim();
-    
+
     // Look for list items (bullet points)
     if (line.startsWith("- ") || line.startsWith("* ")) {
       // For llms.txt files, ALWAYS create separate chunks for each list item
       // regardless of whether it contains a link pattern or not
-      
+
       // Start with the current line as the item content
       let itemContent = line;
       let j = i + 1;
-      
+
       // Look for continuation of the description on subsequent lines
       while (j < lines.length) {
         const nextLine = lines[j].trim();
-        
+
         // Stop if we hit another list item or header
-        if (nextLine.startsWith("- ") || nextLine.startsWith("* ") || 
-            nextLine.match(/^#{1,6}\s+/)) {
+        if (
+          nextLine.startsWith("- ") ||
+          nextLine.startsWith("* ") ||
+          nextLine.match(/^#{1,6}\s+/)
+        ) {
           break;
         }
-        
+
         // Add non-empty lines to description
         if (nextLine !== "") {
           itemContent += "\n" + nextLine;
@@ -1011,134 +1127,142 @@ export function chunkStructuredDocs(text: string, fileName?: string): string[] {
         } else {
           // Skip empty line
           j++;
-          
+
           // But check if next line is a new item or different content
           if (j < lines.length) {
             const lineAfterBlank = lines[j].trim();
-            if (lineAfterBlank.startsWith("- ") || lineAfterBlank.startsWith("* ") ||
-                lineAfterBlank.match(/^#{1,6}\s+/)) {
+            if (
+              lineAfterBlank.startsWith("- ") ||
+              lineAfterBlank.startsWith("* ") ||
+              lineAfterBlank.match(/^#{1,6}\s+/)
+            ) {
               break;
             }
           }
         }
       }
-      
+
       // Get header context for this item
       const headerContext = getCurrentHeader(i);
-      
+
       // Create a separate chunk for this list item with its section context
       if (headerContext) {
         chunks.push(`${headerContext}\n\n${itemContent}`);
       } else {
         chunks.push(itemContent);
       }
-      
+
       i = j;
       continue;
     }
-    
+
     // Look for section headers (## or ###)
     const sectionHeaderMatch = line.match(/^(#{2,3})\s+(.*)/);
     if (sectionHeaderMatch) {
       const sectionLevel = sectionHeaderMatch[1].length;
       const sectionTitle = sectionHeaderMatch[2];
-      
+
       // Create a chunk for the section header itself if it has content
       let sectionContent = "";
       let j = i + 1;
-      
+
       // Check for section description (content directly after header before any list items)
       while (j < lines.length) {
         const nextLine = lines[j].trim();
-        
+
         // Stop if we hit a list item or another header
-        if (nextLine.startsWith("- ") || nextLine.startsWith("* ") || 
-            nextLine.match(/^#{1,6}\s+/)) {
+        if (
+          nextLine.startsWith("- ") ||
+          nextLine.startsWith("* ") ||
+          nextLine.match(/^#{1,6}\s+/)
+        ) {
           break;
         }
-        
+
         // Add non-empty lines to section content
         if (nextLine !== "") {
-          sectionContent += (sectionContent ? "\n" + nextLine : nextLine);
+          sectionContent += sectionContent ? "\n" + nextLine : nextLine;
         }
-        
+
         j++;
       }
-      
+
       // Add the section header as its own chunk if it has content
       if (sectionContent) {
-        chunks.push(`${'#'.repeat(sectionLevel)} ${sectionTitle}\n\n${sectionContent}`);
+        chunks.push(
+          `${"#".repeat(sectionLevel)} ${sectionTitle}\n\n${sectionContent}`,
+        );
       }
-      
+
       // Continue processing at the next line
       i = j;
       continue;
     }
-    
+
     // If we didn't process this line specially, move to the next
     i++;
   }
-  
-  // For non-llms files or if we didn't find many chunks with our list-item approach, 
+
+  // For non-llms files or if we didn't find many chunks with our list-item approach,
   // try the header-based grouping approach
-//   if (!isLlmsFile || chunks.length < 3) {
-//     // Handle nested list structures - try to find groups of related list items
-//     i = 0;
-//     while (i < lines.length) {
-//       const line = lines[i].trim();
-      
-//       // Look for header followed by list items
-//       if (line.match(/^#{1,6}\s+/)) {
-//         const headerText = line.replace(/^#{1,6}\s+/, '');
-//         let listGroup = `${line}`;
-//         let j = i + 1;
-//         let hasListItems = false;
-        
-//         // Skip blank lines
-//         while (j < lines.length && lines[j].trim() === "") {
-//           j++;
-//         }
-        
-//         // Check if followed by list items
-//         while (j < lines.length) {
-//           const listLine = lines[j].trim();
-          
-//           // Add list items to the group
-//           if (listLine.startsWith("- ") || listLine.startsWith("* ")) {
-//             hasListItems = true;
-//             listGroup += "\n" + listLine;
-//             j++;
-//           } else if (listLine === "" && hasListItems && j+1 < lines.length && 
-//                     (lines[j+1].trim().startsWith("- ") || lines[j+1].trim().startsWith("* "))) {
-//             // Empty line between list items
-//             j++;
-//           } else {
-//             break;
-//           }
-//         }
-        
-//         // If we found list items, add as a chunk
-//         if (hasListItems) {
-//           chunks.push(listGroup);
-//         }
-        
-//         i = j;
-//         continue;
-//       }
-      
-//       i++;
-//     }
-//   }
-  
+  //   if (!isLlmsFile || chunks.length < 3) {
+  //     // Handle nested list structures - try to find groups of related list items
+  //     i = 0;
+  //     while (i < lines.length) {
+  //       const line = lines[i].trim();
+
+  //       // Look for header followed by list items
+  //       if (line.match(/^#{1,6}\s+/)) {
+  //         const headerText = line.replace(/^#{1,6}\s+/, '');
+  //         let listGroup = `${line}`;
+  //         let j = i + 1;
+  //         let hasListItems = false;
+
+  //         // Skip blank lines
+  //         while (j < lines.length && lines[j].trim() === "") {
+  //           j++;
+  //         }
+
+  //         // Check if followed by list items
+  //         while (j < lines.length) {
+  //           const listLine = lines[j].trim();
+
+  //           // Add list items to the group
+  //           if (listLine.startsWith("- ") || listLine.startsWith("* ")) {
+  //             hasListItems = true;
+  //             listGroup += "\n" + listLine;
+  //             j++;
+  //           } else if (listLine === "" && hasListItems && j+1 < lines.length &&
+  //                     (lines[j+1].trim().startsWith("- ") || lines[j+1].trim().startsWith("* "))) {
+  //             // Empty line between list items
+  //             j++;
+  //           } else {
+  //             break;
+  //           }
+  //         }
+
+  //         // If we found list items, add as a chunk
+  //         if (hasListItems) {
+  //           chunks.push(listGroup);
+  //         }
+
+  //         i = j;
+  //         continue;
+  //       }
+
+  //       i++;
+  //     }
+  //   }
+
   // Filter out duplicate chunks and very short chunks
   const uniqueChunks = Array.from(new Set(chunks))
-    .filter(chunk => chunk.length > 10)
-    .map(chunk => chunk.trim());
-  
+    .filter((chunk) => chunk.length > 10)
+    .map((chunk) => chunk.trim());
+
   // If we didn't find any chunks with our approach, fall back to standard chunking
   if (uniqueChunks.length === 0) {
     return chunkText(text);
   }
-  
+
   return uniqueChunks;
 }
