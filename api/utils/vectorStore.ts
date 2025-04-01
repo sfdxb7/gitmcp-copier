@@ -33,8 +33,8 @@ export async function getEmbeddings(text: string): Promise<number[]> {
   // This is a simplified embedding function that creates a basic vector representation
   // In production, replace with a call to a proper embedding service like OpenAI
   
-  // Create a simple hash-based embedding (not for production use)
-  const buffer = new ArrayBuffer(512); // 128 dimensions
+  // Create a simple hash-based embedding with 1024 dimensions to match Upstash Vector requirements
+  const buffer = new ArrayBuffer(1024 * 4); // 1024 dimensions (each float32 is 4 bytes)
   const view = new Float32Array(buffer);
   
   // Fill with simple hash values of the text
