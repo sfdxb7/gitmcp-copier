@@ -6,7 +6,10 @@ import {
   storeSession,
   sessionExists,
   queueMessage,
-  getPendingMessages,
+  subscribeToSessionMessages,
+  subscribeToResponse,
+  publishResponse,
+  SerializedRequest
 } from "./utils/sessionStore.js";
 import { parseRawBody } from "./utils/bodyParser.js";
 import { Socket } from "net";
@@ -15,13 +18,6 @@ import { IncomingHttpHeaders, IncomingMessage, ServerResponse } from "http";
 
 // For local instances only - doesn't work across serverless invocations
 let activeTransports: { [sessionId: string]: SSEServerTransport } = {};
-
-// function flushResponse(_: NextApiResponse) {
-// const maybeFlush = (res as any).flush;
-// if (typeof maybeFlush === "function") {
-//   maybeFlush.call(res);
-// }
-// }
 
 export default async function handler(
   req: NextApiRequest,
@@ -67,88 +63,59 @@ export default async function handler(
         userAgent: req.headers["user-agent"],
         createdAt: new Date().toISOString(),
       });
-
-      // Check for any pending messages that might have arrived before this connection
-      const pendingMessages = await getPendingMessages(sessionId);
-      console.log(
-        `Pending messages for session ${sessionId}:`,
-        pendingMessages
-      );
-      if (pendingMessages.length > 0) {
-        console.log(
-          `Processing ${pendingMessages.length} pending messages for session ${sessionId}`
-        );
-        for (const msgData of pendingMessages) {
+      
+      // Subscribe to session messages using Redis PubSub
+      const unsubscribe = await subscribeToSessionMessages(
+        sessionId,
+        async (request: SerializedRequest) => {
           try {
+            console.log(`Processing PubSub message for session ${sessionId}:`, request);
             // Create a fake IncomingMessage object with the stored data
             const fReq = createFakeIncomingMessage({
-              method: msgData.method || "POST",
-              url: msgData.url || req.url,
-              headers: msgData.headers || {},
-              body: msgData.payload,
+              method: request.method || "POST",
+              url: request.url || req.url,
+              headers: request.headers || {},
+              body: request.body,
             });
+            
             const syntheticRes = new ServerResponse(fReq);
-            console.log(
-              `Sending pending message to session ${sessionId}:`,
-              msgData
-            );
-            // Send the message to the transport
-            await transport.handlePostMessage(fReq, syntheticRes);
-          } catch (error) {
-            console.error(`Error sending pending message: ${error}`);
-          }
-        }
-      }
-
-      // Set up polling for new messages (only needed if SSE doesn't auto-receive)
-      const pollInterval = setInterval(async () => {
-        try {
-          const messages = await getPendingMessages(sessionId);
-          for (const msgData of messages) {
-            console.log(
-              `Sending polled message to session ${sessionId}:`,
-              msgData
-            );
-            const fReq = createFakeIncomingMessage({
-              method: msgData.method || "POST",
-              url: msgData.url || req.url,
-              headers: msgData.headers || {},
-              body: msgData.payload,
-            });
-            const syntheticRes = new ServerResponse(fReq);
-            let status = 100;
+            let status = 200;
             let body = "";
+            
+            // Capture the response status and body
             syntheticRes.writeHead = (statusCode: number) => {
               status = statusCode;
               return syntheticRes;
             };
+            
             syntheticRes.end = (b: unknown) => {
-              body = b as string;
+              body = typeof b === 'string' ? b : JSON.stringify(b);
               return syntheticRes;
             };
-
-            console.log(
-              `Sending pending message to session ${sessionId}:`,
-              msgData.payload,
-              JSON.stringify(msgData.payload)
-            );
+            
+            // Process the message with the transport
             await transport.handlePostMessage(fReq, syntheticRes);
-
-            console.warn(
-              `Message sent to session ${sessionId} with status ${syntheticRes.statusCode}:`,
-              body
+            
+            // Publish the response back to Redis so the original requester can receive it
+            console.log(`Publishing response for ${sessionId}:${request.requestId} with status ${status}`);
+            await publishResponse(sessionId, request.requestId, status, body);
+          } catch (error) {
+            console.error(`Error processing message: ${error}`);
+            // Publish error response
+            await publishResponse(
+              sessionId, 
+              request.requestId, 
+              500, 
+              JSON.stringify({ error: error instanceof Error ? error.message : String(error) })
             );
           }
-        } catch (error) {
-          console.error("Error polling for messages:", error);
         }
-      }, 2000); // Poll every 2 seconds
+      );
 
       // Clean up when the connection closes
       req.on("close", async () => {
-        clearInterval(pollInterval);
         delete activeTransports[sessionId];
-        // await removeSession(sessionId);
+        await unsubscribe();
         console.log(`SSE connection closed, sessionId: ${sessionId}`);
       });
     } catch (error) {
@@ -178,7 +145,6 @@ export default async function handler(
         // We can handle it directly in this instance
         console.log(`Handling POST message for session ${sessionId} directly`);
         await activeTransports[sessionId].handlePostMessage(req, res);
-        // res.status(200).json({ success: true, queued: true });
         return;
       }
 
@@ -192,16 +158,43 @@ export default async function handler(
       }
 
       const rawBody = await parseRawBody(req);
-      console.log(`Received POST message for session ${sessionId}:`, rawBody);
       const message = JSON.parse(rawBody.toString("utf8"));
       console.log(`Parsed message:`, message);
 
-      // Queue the message in Redis for the SSE connection to pick up
-      // Now storing headers, method and URL along with the message
-      await queueMessage(sessionId, message, req.headers, req.method, req.url);
-
-      // Respond with success
-      res.status(200).json({ success: true, queued: true });
+      // Queue the message via Redis PubSub
+      const requestId = await queueMessage(sessionId, message, req.headers, req.method, req.url);
+      
+      // Set up a subscription to listen for a response
+      let responseTimeout: NodeJS.Timeout;
+      const unsubscribe = await subscribeToResponse(
+        sessionId,
+        requestId, 
+        (response) => {
+          if (responseTimeout) {
+            clearTimeout(responseTimeout);
+          }
+          
+          // Return the response to the client
+          res.status(response.status).send(response.body);
+          
+          // Clean up the subscription
+          unsubscribe().catch(console.error);
+        }
+      );
+      
+      // Set a timeout for the response
+      responseTimeout = setTimeout(async () => {
+        await unsubscribe();
+        res.status(408).json({ error: "Request timed out waiting for response" });
+      }, 10000); // 10 seconds timeout
+      
+      // Clean up subscription when request is closed
+      req.on("close", async () => {
+        if (responseTimeout) {
+          clearTimeout(responseTimeout);
+        }
+        await unsubscribe();
+      });
     } catch (error) {
       console.error("Error handling POST message:", error);
       res.status(500).json({
