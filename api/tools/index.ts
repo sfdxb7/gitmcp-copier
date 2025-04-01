@@ -550,6 +550,8 @@ async function searchRepositoryDocumentation({
     repo = path || "docs"; 
   }
 
+  console.log(`Searching ${owner}/${repo} for "${query}"`);
+  
   // Search for documentation using vector search
   let results = await searchDocumentation(owner, repo, query);
 
@@ -560,13 +562,16 @@ async function searchRepositoryDocumentation({
     // Fetch the documentation
     const docResult = await fetchDocumentation({ requestHost, requestUrl });
     const content = docResult.content[0].text;
+    const fileUsed = docResult.fileUsed;
+    
+    console.log(`Fetched documentation from ${fileUsed} (${content.length} characters)`);
     
     // Try search again after indexing
     if (content && owner && repo && content !== "No documentation found. Generated fallback content.") {
       try {
         // Wait for vectors to be stored
         const vectorCount = await storeDocumentationVectors(owner, repo, content);
-        console.log(`Indexed ${vectorCount} document chunks for ${owner}/${repo}`);
+        console.log(`Successfully indexed ${vectorCount} document chunks for ${owner}/${repo}`);
         
         // Search again after indexing
         results = await searchDocumentation(owner, repo, query);
@@ -582,7 +587,15 @@ async function searchRepositoryDocumentation({
   if (results.length > 0) {
     formattedText = formatSearchResults(results, query);
   } else {
-    formattedText = `### Search Results for: "${query}"\n\nNo relevant documentation found for your query. Try a different search term or check if documentation is available for this repository.`;
+    // Provide more helpful guidance when no results are found
+    formattedText = `### Search Results for: "${query}"\n\n` +
+      `No relevant documentation found for your query. The documentation for this repository has been indexed, ` +
+      `but no sections matched your specific search terms.\n\n` +
+      `Try:\n` +
+      `- Using different keywords\n` +
+      `- Being more specific about what you're looking for\n` +
+      `- Checking for basic information like "What is ${repo}?"\n` +
+      `- Using common terms like "installation", "tutorial", or "example"\n`;
   }
   
   // Return search results in proper MCP format

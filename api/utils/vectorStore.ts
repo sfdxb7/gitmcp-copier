@@ -279,8 +279,22 @@ export function chunkReadme(text: string): string[] {
   const lines = text.split("\n");
   let i = 0;
   
+  // Helper function to detect badge lines (markdown image links with badge URLs)
+  function isBadgeLine(line: string): boolean {
+    // Detect badge-specific patterns (shield.io, badge URLs, image links in a row)
+    return /!\[.*\]\(.*badge.*\)/.test(line) || 
+           /!\[.*\]\(.*shield\.io.*\)/.test(line) ||
+           /\[!\[.*\]\(.*\)\]\(.*\)/.test(line) && (line.includes('badge') || line.includes('shield'));
+  }
+  
   while (i < lines.length) {
     const line = lines[i];
+    
+    // Skip badge lines completely - don't include them in any chunk
+    if (isBadgeLine(line)) {
+      i++;
+      continue;
+    }
     
     // Check if this is a heading line
     const headerMatch = line.match(/^(#{1,6})\s+(.+)/);
@@ -305,6 +319,29 @@ export function chunkReadme(text: string): string[] {
       i++;
     } else {
       // This is regular content or a special element (list, code block, etc.)
+      
+      // Handle HTML image/link tags that might be badges
+      if (line.includes('<img') && (line.includes('badge') || line.includes('shield'))) {
+        i++;
+        continue;
+      }
+      
+      // Skip consecutive badge or shield lines that might be in a group
+      if (line.includes('](') && i + 1 < lines.length && isBadgeLine(lines[i + 1])) {
+        let allBadges = true;
+        // Look ahead to see if this is part of a badge group
+        for (let j = i; j < Math.min(i + 5, lines.length); j++) {
+          if (!isBadgeLine(lines[j]) && lines[j].trim().length > 0) {
+            allBadges = false;
+            break;
+          }
+        }
+        
+        if (allBadges) {
+          i++;
+          continue;
+        }
+      }
       
       // Group together consecutive paragraphs that belong together
       if (line.trim() === "") {
@@ -341,6 +378,12 @@ export function chunkReadme(text: string): string[] {
         // Keep adding lines until we find something that's not a list item or empty line
         while (i < lines.length) {
           const nextLine = lines[i];
+          
+          // Skip badge lines in lists
+          if (isBadgeLine(nextLine)) {
+            i++;
+            continue;
+          }
           
           // If it's a continuation of the list or empty line between list items
           if (nextLine.trim() === "" || nextLine.trim().match(/^[*\-+] |^\d+\. /) || 
@@ -592,6 +635,21 @@ function calculateKeywordMatchScore(text: string, query: string): number {
   
   let score = 0;
   
+  // Penalize license sections, which are rarely relevant
+  if (/^#+\s+license\b/im.test(text) || text.toLowerCase().includes('mit license')) {
+    score -= 0.3;
+  }
+  
+  // Penalize badge sections which are usually not informative for queries
+  if (/\]\(https?:\/\/[^)]*badge[^)]*\)/i.test(text) && text.split('\n').length < 8) {
+    score -= 0.2;
+  }
+  
+  // Boost sections that likely contain actual information
+  if (/^#+\s+(what is|getting started|introduction|usage|examples|installation)/im.test(text)) {
+    score += 0.3;
+  }
+  
   // Extract terms from query (removing stop words)
   const queryTerms = lowerQuery.split(/\W+/).filter(
     term => term.length > 2 && !commonWords.has(term)
@@ -607,13 +665,13 @@ function calculateKeywordMatchScore(text: string, query: string): number {
     score += matches.length * 0.05;
   }
   
-  // Boost for heading matches
+  // Boost for heading matches (much higher boost than before)
   const headings = text.match(/#{1,6}\s+([^\n]+)/g) || [];
   for (const heading of headings) {
     const lowerHeading = heading.toLowerCase();
     for (const term of queryTerms) {
       if (lowerHeading.includes(term)) {
-        score += 0.2; // Significant boost for term in heading
+        score += 0.25; // Higher boost for term in heading
       }
     }
   }
