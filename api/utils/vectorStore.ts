@@ -207,24 +207,26 @@ export async function searchDocumentation(
   try {
     const queryEmbedding = await getEmbeddings(query);
     
-    // Query with prefix to match repo vectors
-    // Upstash Vector doesn't have direct metadata filtering,
-    // so we use ID prefix matching (side-step until proper metadata filtering is available)
-    const idPrefix = `repo:${owner}:${repo}`;
-    
+    // Query vectors without using filter prefix because it's causing errors
+    // Instead, we'll filter the results after querying
     const results = await vector.query({
       vector: queryEmbedding,
-      topK: limit,
+      topK: limit * 3, // Query more results than needed to ensure we have enough after filtering
       includeMetadata: true,
-      // Include only vectors with IDs matching our prefix
-      filter: idPrefix,  // This needs to be a string prefix match, not an object
     });
     
     if (!results || !Array.isArray(results)) {
       return [];
     }
     
-    return results.map(result => {
+    // Filter results by owner and repo manually
+    const filteredResults = results.filter(result => {
+      const metadata = result.metadata as Dict;
+      return metadata?.owner === owner && metadata?.repo === repo;
+    });
+    
+    // Take only the requested number of results
+    return filteredResults.slice(0, limit).map(result => {
       // Safely extract chunk from metadata
       const metadata = result.metadata as Dict;
       return {
