@@ -455,7 +455,7 @@ async function fetchDocumentation({
     // Store documentation in vector database for later search
     if (content && owner && repo) {
       try {
-        await storeDocumentationVectors(owner, repo, content);
+        await storeDocumentationVectors(owner, repo, content, fileUsed);
         console.log(`Stored documentation vectors for ${owner}/${repo}`);
       } catch (error) {
         console.error(`Failed to store documentation vectors: ${error}`);
@@ -581,6 +581,7 @@ async function searchRepositoryDocumentation({
             owner,
             repo,
             content,
+            fileUsed,
           );
           console.log(
             `Successfully indexed ${vectorCount} document chunks for ${owner}/${repo}`,
