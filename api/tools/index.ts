@@ -515,10 +515,12 @@ async function searchRepositoryDocumentation({
   requestHost,
   requestUrl,
   query,
+  forceReindex = false,
 }: {
   requestHost: string;
   requestUrl?: string;
   query: string;
+  forceReindex?: boolean;
 }) {
   const hostHeader = requestHost;
 
@@ -552,16 +554,16 @@ async function searchRepositoryDocumentation({
 
   console.log(`Searching ${owner}/${repo} for "${query}"`);
   
-  // First, check if this is the initial search for this repo/owner
+  // First, check if this is the initial search for this repo/owner or if reindexing is forced
   let isFirstSearch = false;
   
   try {
     // Search for documentation using vector search
     let results = await searchDocumentation(owner, repo, query);
     
-    // If no results, we might need to index the documentation
-    if (results.length === 0) {
-      console.log(`No search results found for ${query} in ${owner}/${repo}, fetching documentation first`);
+    // If no results or forceReindex is true, we need to index the documentation
+    if (results.length === 0 || forceReindex) {
+      console.log(`${forceReindex ? 'Force reindexing' : 'No search results found'} for ${query} in ${owner}/${repo}, fetching documentation first`);
       isFirstSearch = true;
       
       // Fetch the documentation
@@ -664,6 +666,7 @@ async function searchRepositoryDocumentation({
 
 /**
  * Format search results into a readable text format
+ * Ensures each documentation entry is properly separated
  * @param results - Array of search results
  * @param query - The original search query
  * @returns Formatted text with search results
@@ -678,12 +681,60 @@ function formatSearchResults(
     return output + "No results found.";
   }
   
+  // Array to keep track of already displayed entries to avoid duplicates
+  const displayedEntries = new Set<string>();
+  let resultCount = 0;
+  
   results.forEach((result, index) => {
-    output += `#### Result ${index + 1} (Score: ${result.score.toFixed(2)})\n\n${result.chunk}\n\n`;
+    // Check if this chunk contains multiple documentation entries
+    // Documentation entries typically follow the pattern [Title](URL): Description
+    const entryPattern = /\[.*?\]\(.*?\):\s*.*?(?=\n\n\[|$)/gs;
+    const entries = result.chunk.match(entryPattern);
     
-    // Add separator if not the last result
-    if (index < results.length - 1) {
-      output += "---\n\n";
+    if (entries && entries.length > 1) {
+      // This chunk contains multiple entries, display each one separately
+      entries.forEach((entry, entryIndex) => {
+        // Skip duplicate entries
+        const normalizedEntry = entry.trim();
+        if (displayedEntries.has(normalizedEntry)) {
+          return;
+        }
+        
+        resultCount++;
+        displayedEntries.add(normalizedEntry);
+        
+        // Add header context if available
+        let headerContext = '';
+        const headerMatch = result.chunk.match(/^(#+\s+.*?)(?=\n\n)/);
+        if (headerMatch) {
+          headerContext = headerMatch[1] + '\n\n';
+        }
+        
+        output += `#### Result ${resultCount} (Score: ${result.score.toFixed(2)})\n\n${headerContext}${normalizedEntry}\n\n`;
+        
+        // Add separator if not the last entry
+        if (index < results.length - 1 || entryIndex < entries.length - 1) {
+          output += "---\n\n";
+        }
+      });
+    } else {
+      // Single entry or non-standard format, display the whole chunk
+      resultCount++;
+      
+      // Normalize the chunk to avoid duplicates
+      const normalizedChunk = result.chunk.trim();
+      if (displayedEntries.has(normalizedChunk)) {
+        return;
+      }
+      
+      displayedEntries.add(normalizedChunk);
+      
+      output += `#### Result ${resultCount} (Score: ${result.score.toFixed(2)})\n\n${normalizedChunk}\n\n`;
+      
+      // Add separator if not the last result
+      if (index < results.length - 1) {
+        output += "---\n\n";
+      }
     }
   });
   

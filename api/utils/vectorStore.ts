@@ -801,104 +801,215 @@ export async function searchDocumentation(
 
 /**
  * Specialized chunker for documentation that maintains document structure
- * Preserves heading hierarchy and treats documentation entries as cohesive units
+ * Each chunk contains one documentation entry along with its section context
  * @param text - Documentation text in markdown format
  * @returns Array of text chunks with preserved structure
  */
 export function chunkStructuredDocs(text: string): string[] {
-  // Check if this looks like a structured documentation file with link-description entries
-  // This is a simple check to quickly determine if this is an llms.txt file
-  if (!text.includes('[') || !text.includes('](') || !text.includes('):')) {
+  // Quick check to see if this looks like structured documentation
+  // Check for both link patterns: [title](url) and nested list items with links
+  const hasLinkPatterns = /\[.+?\]\(.+?\)/.test(text);
+  if (!hasLinkPatterns) {
     return chunkText(text);
   }
   
   const chunks: string[] = [];
-  
-  // Step 1: Extract all headers and their positions
-  const headers: { level: number; title: string; position: number; }[] = [];
   const lines = text.split('\n');
   
-  // Find all headers and their positions
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
+  // Step 1: Extract all headers and build a header hierarchy
+  interface HeaderInfo {
+    level: number;
+    title: string;
+    lineIndex: number;
+  }
+  
+  const headers: HeaderInfo[] = [];
+  
+  lines.forEach((line, index) => {
     const headerMatch = line.match(/^(#{1,6})\s+(.*)/);
     if (headerMatch) {
       headers.push({
         level: headerMatch[1].length,
         title: headerMatch[2].trim(),
-        position: i
+        lineIndex: index
       });
     }
-  }
+  });
   
-  // Function to get the current header hierarchy at a specific position
-  function getHeaderHierarchy(position: number): string {
+  // Step 2: Get header context at a given position
+  function getHeaderContext(lineIndex: number): string {
     const relevantHeaders = [];
-    let currentLevel = 10; // Start with high number to catch all levels
+    const minHeaderLevels: Record<number, number> = {};
     
-    // Find all headers that are active at this position, respecting hierarchy
+    // Find all headers that appear before this line
     for (const header of headers) {
-      if (header.position < position) {
-        if (header.level < currentLevel) {
-          // This header is higher in hierarchy than what we've seen
-          relevantHeaders.push(`${'#'.repeat(header.level)} ${header.title}`);
-          currentLevel = header.level;
-        } else if (header.level === currentLevel) {
-          // Replace the current header at this level
-          relevantHeaders.pop();
-          relevantHeaders.push(`${'#'.repeat(header.level)} ${header.title}`);
-        } else {
-          // This is a subheader of our current header
-          relevantHeaders.push(`${'#'.repeat(header.level)} ${header.title}`);
+      if (header.lineIndex < lineIndex) {
+        // If we haven't seen this header level yet, or if this header
+        // appears after the last one we recorded for this level
+        if (
+          minHeaderLevels[header.level] === undefined || 
+          header.lineIndex > minHeaderLevels[header.level]
+        ) {
+          minHeaderLevels[header.level] = header.lineIndex;
         }
+      }
+    }
+    
+    // Build the relevant header context, from most general to most specific
+    const levels = Object.keys(minHeaderLevels)
+      .map(Number)
+      .sort((a, b) => a - b);
+      
+    for (const level of levels) {
+      const headerIndex = headers.findIndex(
+        h => h.level === level && h.lineIndex === minHeaderLevels[level]
+      );
+      
+      if (headerIndex !== -1) {
+        relevantHeaders.push(`${'#'.repeat(headers[headerIndex].level)} ${headers[headerIndex].title}`);
       }
     }
     
     return relevantHeaders.join('\n\n');
   }
   
-  // Step 2: Process the content by paragraphs, looking for documentation entries
-  const paragraphs = text.split(/\n\s*\n/); // Split on blank lines
+  // Step 3: Process documentation with improved link and list item handling
+  let currentEntry = '';
+  let entryStartLine = 0;
+  let inEntry = false;
+  let inLinkList = false;
+  let currentHeaderContext = '';
   
-  for (let i = 0; i < paragraphs.length; i++) {
-    const paragraph = paragraphs[i].trim();
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmedLine = line.trim();
     
-    // Skip empty paragraphs
-    if (!paragraph) continue;
-    
-    // Check if this paragraph is a header - skip it as we handle headers separately
-    if (/^#{1,6}\s+/.test(paragraph)) continue;
-    
-    // Check if this paragraph contains a documentation entry
-    // Pattern: [Title](URL): Description
-    if (paragraph.match(/^\[.+?\]\(.+?\):/)) {
-      // Calculate position in the original text for header context
-      const paragraphPosition = text.indexOf(paragraph);
-      
-      // Get the headers that apply at this position
-      const headerContext = getHeaderHierarchy(paragraphPosition);
-      
-      // Create a chunk with header context and just this single entry
-      let chunkText = '';
-      if (headerContext) {
-        chunkText = headerContext + '\n\n';
+    // Check if this line is a header
+    if (trimmedLine.match(/^#{1,6}\s+/)) {
+      // If we were in an entry, save it
+      if (inEntry && currentEntry.trim()) {
+        chunks.push(currentEntry.trim());
       }
-      chunkText += paragraph;
       
-      chunks.push(chunkText.trim());
-    } else {
-      // For paragraphs that aren't documentation entries, use standard chunking
-      // But only if they have substantial content (not just formatting)
-      if (paragraph.length > 20) {
-        chunks.push(paragraph.trim());
+      // Update header context for subsequent entries
+      currentHeaderContext = getHeaderContext(i);
+      
+      // Headers are also saved as separate chunks with their context
+      const headerChunk = `${currentHeaderContext}${currentHeaderContext ? '\n\n' : ''}${trimmedLine}`;
+      chunks.push(headerChunk.trim());
+      
+      // Reset tracking
+      currentEntry = '';
+      inEntry = false;
+      inLinkList = false;
+      continue;
+    }
+    
+    // Detect link patterns: [Title](URL) or - [Title](URL)
+    const linkMatch = trimmedLine.match(/^(?:[-*]\s*)?\[.+?\]\(.+?\)(?::.*)?$/);
+    
+    if (linkMatch) {
+      // If we're starting a new list of links
+      if (!inLinkList) {
+        // If we were in another type of entry, save it first
+        if (inEntry && currentEntry.trim()) {
+          chunks.push(currentEntry.trim());
+          currentEntry = '';
+        }
+        
+        // Start tracking a link list
+        inLinkList = true;
+        inEntry = true;
+        entryStartLine = i;
+        currentEntry = `${currentHeaderContext}${currentHeaderContext ? '\n\n' : ''}${trimmedLine}`;
+      } 
+      // Continuation of link list
+      else {
+        // If this is a new link item but in the same list, create a new chunk with context
+        const fullEntry = `${currentHeaderContext}${currentHeaderContext ? '\n\n' : ''}${currentEntry.trim()}\n\n${trimmedLine}`;
+        chunks.push(fullEntry.trim());
+        
+        // Start a new current entry with this line
+        currentEntry = `${currentHeaderContext}${currentHeaderContext ? '\n\n' : ''}${trimmedLine}`;
+      }
+    }
+    // Handle link description text (usually after a colon)
+    else if (inLinkList && trimmedLine.length > 0 && !trimmedLine.startsWith('-') && !trimmedLine.startsWith('*')) {
+      // Append the description to the current entry
+      currentEntry += '\n' + trimmedLine;
+      
+      // If description is substantial, save as a chunk with its link
+      if (trimmedLine.length > 20) {
+        const fullEntry = `${currentHeaderContext}${currentHeaderContext ? '\n\n' : ''}${currentEntry.trim()}`;
+        chunks.push(fullEntry.trim());
+      }
+    }
+    // Handle regular non-link paragraphs
+    else if (trimmedLine.length > 0 && !inLinkList) {
+      // Start a new regular entry if we weren't in one
+      if (!inEntry) {
+        inEntry = true;
+        entryStartLine = i;
+        currentEntry = `${currentHeaderContext}${currentHeaderContext ? '\n\n' : ''}${trimmedLine}`;
+      }
+      // Continue an existing paragraph
+      else {
+        currentEntry += '\n' + trimmedLine;
+      }
+      
+      // If we hit a substantial paragraph, save it as its own chunk
+      if (currentEntry.length > 200) {
+        chunks.push(currentEntry.trim());
+        currentEntry = '';
+        inEntry = false;
+      }
+    }
+    // Handle empty lines - they might separate entries
+    else if (trimmedLine.length === 0) {
+      // If we were in a link list, empty line might end it
+      if (inLinkList && i < lines.length - 1) {
+        // Check if the next non-empty line doesn't start with a link or list marker
+        let nextNonEmptyIdx = i + 1;
+        while (nextNonEmptyIdx < lines.length && lines[nextNonEmptyIdx].trim() === '') {
+          nextNonEmptyIdx++;
+        }
+        
+        if (nextNonEmptyIdx < lines.length) {
+          const nextNonEmpty = lines[nextNonEmptyIdx].trim();
+          // If next line is not a link or list item, end the link list
+          if (!nextNonEmpty.match(/^(?:[-*]\s*)?\[.+?\]\(.+?\)/)) {
+            inLinkList = false;
+            
+            // Save the current entry if it's not already saved
+            if (inEntry && currentEntry.trim()) {
+              chunks.push(currentEntry.trim());
+              currentEntry = '';
+              inEntry = false;
+            }
+          }
+        }
+      }
+      // For regular paragraphs, empty line might separate them
+      else if (inEntry && currentEntry.trim()) {
+        chunks.push(currentEntry.trim());
+        currentEntry = '';
+        inEntry = false;
       }
     }
   }
   
-  // If no chunks were found using this approach, fall back to regular chunking
-  if (chunks.length === 0) {
+  // Add the last entry if we were processing one
+  if (inEntry && currentEntry.trim()) {
+    chunks.push(currentEntry.trim());
+  }
+  
+  // Filter out duplicate chunks and very short chunks
+  const uniqueChunks = Array.from(new Set(chunks)).filter(chunk => chunk.length > 20);
+  
+  // If we didn't find any chunks with our approach, fall back to standard chunking
+  if (uniqueChunks.length === 0) {
     return chunkText(text);
   }
   
-  return chunks;
+  return uniqueChunks;
 }
