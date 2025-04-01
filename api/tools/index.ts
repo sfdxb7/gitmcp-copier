@@ -201,19 +201,19 @@ function generateToolName(requestHost: string, requestUrl?: string): string {
   try {
     console.log("Generating tool name for host:", requestUrl);
 
-    // Default description as fallback
+    // Default tool name as fallback
     let toolName = "fetch_documentation";
 
     // Parse the URL if provided
     const url = requestUrl
-      ? new URL(requestUrl)
+      ? new URL(`http://${requestHost}${requestUrl}`)
       : new URL(`http://${requestHost}`);
     const path = url.pathname.split("/").filter(Boolean).join("/");
 
     // Check for subdomain pattern: {subdomain}.gitmcp.io/{path}
     if (requestHost.includes(".gitmcp.io")) {
       const subdomain = requestHost.split(".")[0];
-      toolName = `fetch_${subdomain}_documentation`;
+      toolName = `fetch_${subdomain}_${path}_documentation`;
     }
     // Check for github repo pattern: gitmcp.io/{owner}/{repo} or git-mcp.vercel.app/{owner}/{repo}
     else if (
