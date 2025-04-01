@@ -253,6 +253,114 @@ const commonWords = new Set([
 ]);
 
 /**
+ * Specialized chunker for documentation that maintains document structure
+ * Preserves heading hierarchy and treats documentation entries as cohesive units
+ * @param text - Documentation text in markdown format
+ * @returns Array of text chunks with preserved structure
+ */
+export function chunkStructuredDocs(text: string): string[] {
+  // Detect if the content appears to be structured documentation
+  const isStructuredDoc = /\[\S+\]\([^)]+\):.+\n/gm.test(text);
+  
+  // If not structured documentation, use the regular chunking
+  if (!isStructuredDoc) {
+    return chunkText(text);
+  }
+  
+  const chunks: string[] = [];
+  
+  // Step 1: Split into main sections based on top-level headings (# Heading)
+  const mainSections = text.split(/(?=^# .*$)/gm);
+  
+  for (const mainSection of mainSections) {
+    if (!mainSection.trim()) continue;
+    
+    // Extract the main section title
+    const mainTitleMatch = mainSection.match(/^# (.*)/);
+    const mainTitle = mainTitleMatch ? mainTitleMatch[1].trim() : "Section";
+    
+    // Step 2: Split into subsections (## Heading)
+    const subsections = mainSection.split(/(?=^## .*$)/gm);
+    
+    let mainIntro = "";
+    
+    // First part might be the main section intro text
+    if (subsections.length > 0 && !subsections[0].startsWith('## ')) {
+      mainIntro = subsections.shift() || "";
+      // Only include intro if it's substantial (not just the title)
+      if (mainIntro.trim() !== `# ${mainTitle}`) {
+        chunks.push(mainIntro.trim());
+      }
+    }
+    
+    for (const subsection of subsections) {
+      if (!subsection.trim()) continue;
+      
+      // Extract the subsection title
+      const subTitleMatch = subsection.match(/^## (.*)/);
+      const subTitle = subTitleMatch ? subTitleMatch[1].trim() : "Subsection";
+      
+      // Step 3: Identify individual documentation entries
+      // Look for pattern: [Link Text](URL): Description
+      const entryPattern = /\[([^\]]+)\]\(([^)]+)\):([\s\S]+?)(?=\n\n\[|$)/g;
+      let match;
+      let entriesFound = false;
+      
+      // Create a chunk with subsection context
+      const subsectionContext = `# ${mainTitle}\n\n## ${subTitle}\n\n`;
+      
+      // Extract entries from this subsection
+      while ((match = entryPattern.exec(subsection)) !== null) {
+        entriesFound = true;
+        const [fullMatch, linkText, url, description] = match;
+        
+        // Create a self-contained chunk with hierarchy context
+        const entryChunk = 
+          `${subsectionContext}[${linkText}](${url}):${description.trim()}`;
+        
+        chunks.push(entryChunk);
+      }
+      
+      // If no entries were found with the pattern, include the whole subsection
+      if (!entriesFound) {
+        const cleanSubsection = subsection.trim();
+        if (cleanSubsection) {
+          chunks.push(cleanSubsection);
+        }
+      }
+    }
+  }
+  
+  // If no chunks were created (parsing failed), fall back to regular chunking
+  if (chunks.length === 0) {
+    return chunkText(text);
+  }
+  
+  return chunks;
+}
+
+/**
+ * Process documentation text into chunks for vector storage
+ * Uses specialized chunking for structured documentation, or falls back to default chunking
+ * @param text - Documentation text
+ * @returns Array of text chunks
+ */
+export function chunkDocumentation(text: string): string[] {
+  // First try specialized structured documentation chunking
+  try {
+    const structuredChunks = chunkStructuredDocs(text);
+    if (structuredChunks.length > 0) {
+      return structuredChunks;
+    }
+  } catch (error) {
+    console.warn("Structured documentation chunking failed, falling back to default chunker");
+  }
+  
+  // Fall back to the regular chunking algorithm
+  return chunkText(text);
+}
+
+/**
  * Process documentation text into chunks for vector storage with improved boundaries
  * Ensures chunks respect document structure like paragraphs and headings
  * @param text - Documentation text
@@ -380,8 +488,8 @@ export async function storeDocumentationVectors(
       console.log(`Error managing existing vectors: ${error}`);
     }
     
-    // Chunk the content
-    const chunks = chunkText(content);
+    // Use specialized documentation chunking for better results
+    const chunks = chunkDocumentation(content);
     console.log(`Created ${chunks.length} chunks for ${owner}/${repo}`);
     
     // Generate embeddings and upsert vectors
