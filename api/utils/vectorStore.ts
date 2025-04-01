@@ -139,16 +139,44 @@ function extractKeywords(text: string): Array<{term: string, score: number}> {
 
 /**
  * Add topic features to the vector to improve matching on specific domains
+ * With enhanced recognition of installation-related content
  */
 function addTopicFeatures(vector: Float32Array, text: string): void {
+  // Installation-specific patterns with strong weights to ensure installation content is prioritized
+  const installationPatterns = [
+    /how to install|installation guide|setup instructions|getting started/i,
+    /\binstall\b.*\b(it|this|package|library|framework)\b/i,
+    /\bsetup\b.*\b(guide|tutorial|instructions)\b/i,
+    /\bdocker\b.*\b(install|run|setup|compose)\b/i,
+    /\b(maven|gradle)\b.*\b(dependency|install|import)\b/i,
+    /\bnpm install\b|\byarn add\b|\bpip install\b/i,
+    /\brequirements\b|\bprerequisites\b/i
+  ];
+  
+  // Check for installation-specific content
+  let installationScore = 0;
+  for (const pattern of installationPatterns) {
+    if (pattern.test(text)) {
+      installationScore += 0.3; // Higher than regular topics
+    }
+  }
+  
+  // If this is clearly installation content, significantly boost specific vector dimensions
+  if (installationScore > 0) {
+    for (let i = 950; i < 960; i++) {
+      vector[i] += installationScore;
+    }
+  }
+  
+  // Regular topic patterns with normal weights
   const topics = [
-    { pattern: /\binstall|setup|deploy|configuration|configure\b/i, position: 950, weight: 0.8 },
-    { pattern: /\bdocker|container|kubernetes|k8s\b/i, position: 960, weight: 0.8 },
-    { pattern: /\bjava|spring|hibernate|jpa\b/i, position: 970, weight: 0.8 },
-    { pattern: /\bquery|sql|database|mongodb|repository\b/i, position: 980, weight: 0.8 },
-    { pattern: /\btutorial|guide|example|how to\b/i, position: 990, weight: 0.8 },
-    { pattern: /\berror|problem|issue|debug\b/i, position: 1000, weight: 0.8 },
-    { pattern: /\bapi|rest|endpoint|url\b/i, position: 1010, weight: 0.8 }
+    { pattern: /\binstall|setup|deploy|configuration|configure\b/i, position: 950, weight: 0.7 },
+    { pattern: /\bdocker|container|kubernetes|k8s\b/i, position: 960, weight: 0.7 },
+    { pattern: /\bjava|spring|hibernate|jpa\b/i, position: 970, weight: 0.6 },
+    { pattern: /\bquery|sql|database|mongodb|repository\b/i, position: 980, weight: 0.6 },
+    { pattern: /\btutorial|guide|example|how to\b/i, position: 990, weight: 0.7 },
+    { pattern: /\berror|problem|issue|debug\b/i, position: 1000, weight: 0.5 },
+    { pattern: /\bapi|rest|endpoint|url\b/i, position: 1010, weight: 0.5 }
   ];
   
   // Enhance specific positions based on detected topics
@@ -159,6 +187,25 @@ function addTopicFeatures(vector: Float32Array, text: string): void {
       for (let i = 0; i < 5; i++) {
         const pos = (topic.position + i) % 1024;
         vector[pos] += topic.weight;
+      }
+    }
+  }
+  
+  // Detect code blocks which often contain installation commands
+  const codeBlockPattern = /```[a-z]*\n[\s\S]+?\n```/gi;
+  const codeBlocks = text.match(codeBlockPattern) || [];
+  
+  if (codeBlocks.length > 0) {
+    // Check if any code blocks contain installation/setup commands
+    const installCommands = codeBlocks.some(block => 
+      /\b(npm|yarn|pip|mvn|gradle|docker|apt|yum|brew)\b/i.test(block) ||
+      /\binstall\b|\bsetup\b|\bbuild\b|\bcompile\b/i.test(block)
+    );
+    
+    if (installCommands) {
+      // Significantly boost installation-related dimensions
+      for (let i = 950; i < 960; i++) {
+        vector[i] += 0.8;
       }
     }
   }
@@ -375,7 +422,101 @@ export async function storeDocumentationVectors(
 }
 
 /**
+ * Generate combined keyword&pattern score for text matching a specific query intent
+ * Used in post-processing to re-rank results beyond vector similarity
+ */
+function calculateKeywordMatchScore(text: string, query: string): number {
+  // Lower-case for case-insensitive matching
+  const lowerText = text.toLowerCase();
+  const lowerQuery = query.toLowerCase();
+  
+  // Detect query intent
+  const isInstallationQuery = /\bhow\b.*\binstall\b|\bsetup\b|\binstallation\b/i.test(lowerQuery);
+  const isUsageQuery = /\bhow\b.*\buse\b|\busage\b|\bexample\b/i.test(lowerQuery);
+  const isErrorQuery = /\berror\b|\bissue\b|\bproblem\b|\bfail\b/i.test(lowerQuery);
+  
+  let score = 0;
+  
+  // Extract terms from query (removing stop words)
+  const queryTerms = lowerQuery.split(/\W+/).filter(
+    term => term.length > 2 && !commonWords.has(term)
+  );
+  
+  // Count term occurrences in text
+  for (const term of queryTerms) {
+    // Use regex to find whole word matches
+    const regex = new RegExp(`\\b${term}\\b`, 'gi');
+    const matches = lowerText.match(regex) || [];
+    
+    // Add score based on frequency
+    score += matches.length * 0.05;
+  }
+  
+  // Boost for heading matches
+  const headings = text.match(/#{1,6}\s+([^\n]+)/g) || [];
+  for (const heading of headings) {
+    const lowerHeading = heading.toLowerCase();
+    for (const term of queryTerms) {
+      if (lowerHeading.includes(term)) {
+        score += 0.2; // Significant boost for term in heading
+      }
+    }
+  }
+  
+  // Intent-specific pattern matching
+  if (isInstallationQuery) {
+    // Check for installation instructions
+    if (/\binstall\b.*\b(steps|guide|instructions)\b/i.test(lowerText)) {
+      score += 0.3;
+    }
+    
+    // Check for package manager commands
+    if (/\bnpm install\b|\byarn add\b|\bpip install\b|\bapt-get\b/i.test(lowerText)) {
+      score += 0.4;
+    }
+    
+    // Check for docker setup
+    if (/\bdocker\b.*\b(install|run|compose)\b/i.test(lowerText)) {
+      score += 0.3;
+    }
+    
+    // Check for build tool commands
+    if (/\bmvn\b|\bgradle\b|\bmaven\b/i.test(lowerText)) {
+      score += 0.25;
+    }
+  }
+  
+  // Check for query term proximity (terms appearing close together)
+  if (queryTerms.length > 1) {
+    // Find all occurrences of first query term
+    for (let i = 0; i < lowerText.length; i++) {
+      const termIndex = lowerText.indexOf(queryTerms[0], i);
+      if (termIndex === -1) break;
+      
+      // Look for other query terms within 50 chars
+      const proximityWindow = lowerText.substring(termIndex, termIndex + 100);
+      let proximityMatches = 0;
+      
+      for (let j = 1; j < queryTerms.length; j++) {
+        if (proximityWindow.includes(queryTerms[j])) {
+          proximityMatches++;
+        }
+      }
+      
+      // Add score based on proximity matches
+      score += (proximityMatches / (queryTerms.length - 1)) * 0.15;
+      
+      // Move past this occurrence
+      i = termIndex;
+    }
+  }
+  
+  return score;
+}
+
+/**
  * Search for relevant documentation
+ * With improved post-processing for better relevance ranking
  * @param owner - Repository owner
  * @param repo - Repository name
  * @param query - Search query
@@ -391,11 +532,10 @@ export async function searchDocumentation(
   try {
     const queryEmbedding = await getEmbeddings(query);
     
-    // Query vectors without using filter prefix because it's causing errors
-    // Instead, we'll filter the results after querying
+    // Query vectors without using filter prefix
     const results = await vector.query({
       vector: queryEmbedding,
-      topK: limit * 3, // Query more results than needed to ensure we have enough after filtering
+      topK: limit * 3, // Query more results than needed
       includeMetadata: true,
     });
     
@@ -409,15 +549,37 @@ export async function searchDocumentation(
       return metadata?.owner === owner && metadata?.repo === repo;
     });
     
-    // Take only the requested number of results
-    return filteredResults.slice(0, limit).map(result => {
-      // Safely extract chunk from metadata
+    // Enhanced ranking: combine vector similarity with keyword matching
+    const enhancedResults = filteredResults.map(result => {
       const metadata = result.metadata as Dict;
+      const chunk = metadata?.chunk || "";
+      
+      // Calculate keyword match score
+      const keywordScore = calculateKeywordMatchScore(chunk, query);
+      
+      // Combine scores (vector similarity + keyword matching)
+      // Normalize vector similarity from [-1,1] to [0,1] range
+      const normalizedVectorScore = (result.score + 1) / 2;
+      
+      // Combined score gives weight to both vector similarity and keyword matches
+      const combinedScore = (normalizedVectorScore * 0.6) + (keywordScore * 0.4);
+      
       return {
-        chunk: metadata?.chunk || "",
-        score: result.score,
+        chunk,
+        vectorScore: result.score,
+        keywordScore,
+        combinedScore
       };
     });
+    
+    // Sort by combined score
+    enhancedResults.sort((a, b) => b.combinedScore - a.combinedScore);
+    
+    // Return with the combined score for better differentiation
+    return enhancedResults.slice(0, limit).map(result => ({
+      chunk: result.chunk,
+      score: result.combinedScore
+    }));
   } catch (error) {
     console.error(`Error searching documentation for ${owner}/${repo}:`, error);
     return [];
