@@ -16,12 +16,12 @@ import { IncomingHttpHeaders, IncomingMessage, ServerResponse } from "http";
 // For local instances only - doesn't work across serverless invocations
 let activeTransports: { [sessionId: string]: SSEServerTransport } = {};
 
-function flushResponse(_: NextApiResponse) {
+// function flushResponse(_: NextApiResponse) {
   // const maybeFlush = (res as any).flush;
   // if (typeof maybeFlush === "function") {
   //   maybeFlush.call(res);
   // }
-}
+// }
 
 export default async function handler(
   req: NextApiRequest,
@@ -60,7 +60,12 @@ export default async function handler(
         userAgent: req.headers["user-agent"],
         createdAt: new Date().toISOString(),
       });
-
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache, no-transform');
+      res.setHeader('Connection', 'keep-alive');
+      res.setHeader('X-Accel-Buffering', 'no');
+      res.flushHeaders(); // Make sure headers are sent immediately
+      
       // Send handshake message
       // await transport.send({
       //   jsonrpc: "2.0",
@@ -68,7 +73,7 @@ export default async function handler(
       //   result: { message: `SSE Connected for ${req.url}`, sessionId },
       // });
       // flushResponse(res);
-      console.log(`SSE connection established for ${req.url}, sessionId: ${sessionId}`);
+      // console.log(`SSE connection established for ${req.url}, sessionId: ${sessionId}`);
 
       // Check for any pending messages that might have arrived before this connection
       const pendingMessages = await getPendingMessages(sessionId);
@@ -103,7 +108,7 @@ export default async function handler(
             // Send the message to the transport
         await transport.handlePostMessage(fReq, syntheticRes);
             
-            flushResponse(res);
+            // flushResponse(res);
           } catch (error) {
             console.error(`Error sending pending message: ${error}`);
           }
