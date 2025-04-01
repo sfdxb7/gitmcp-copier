@@ -44,10 +44,13 @@ export async function getEmbeddings(text: string): Promise<number[]> {
   const keywordExtraction = extractKeywords(text);
 
   // Use a more sophisticated hash function that weights important terms
-  const termWeights = keywordExtraction.reduce((acc, item) => {
-    acc[item.term] = item.score;
-    return acc;
-  }, {} as { [key: string]: number });
+  const termWeights = keywordExtraction.reduce(
+    (acc, item) => {
+      acc[item.term] = item.score;
+      return acc;
+    },
+    {} as { [key: string]: number },
+  );
 
   // Fill the vector with values based on term importance and positions
   const terms = Object.keys(termWeights);

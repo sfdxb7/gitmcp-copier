@@ -322,7 +322,7 @@ export default async function handler(req, res) {
                 unsubscribe().catch((err) => {
                     console.error(`[${INSTANCE_ID}:${requestId}] Error unsubscribing after timeout for ${messageRequestId} (trace: ${messageTraceId}):`, err);
                 });
-            }, 10000); // 10 seconds for all requests
+            }, 6000); // 6 seconds for all requests
             // Clean up subscription when request is closed
             req.on("close", async () => {
                 console.debug(`[${INSTANCE_ID}:${requestId}] Client closed connection for ${sessionId}:${messageRequestId} (trace: ${messageTraceId})`);
