@@ -15,6 +15,9 @@ const PENDING_MSG_PREFIX = "mcp:pending:";
 export interface SessionMessage {
   timestamp: number;
   payload: any;
+  headers?: Record<string, string | string[] | undefined>;
+  method?: string;
+  url?: string;
 }
 
 /**
@@ -49,7 +52,10 @@ export async function sessionExists(sessionId: string): Promise<boolean> {
  */
 export async function queueMessage(
   sessionId: string,
-  message: any
+  message: any,
+  headers?: Record<string, string | string[] | undefined>,
+  method?: string,
+  url?: string
 ): Promise<void> {
   const key = `${PENDING_MSG_PREFIX}${sessionId}`;
   await redis.lpush(
@@ -57,12 +63,18 @@ export async function queueMessage(
     JSON.stringify({
       timestamp: Date.now(),
       payload: message,
+      headers,
+      method,
+      url
     })
   );
 
   console.log(`Message queued for session ${sessionId}:`, message, JSON.stringify({
     timestamp: Date.now(),
     payload: message,
+    headers,
+    method,
+    url
   }));
   await redis.expire(key, SESSION_TTL);
 }

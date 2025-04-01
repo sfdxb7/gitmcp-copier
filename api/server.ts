@@ -17,10 +17,10 @@ import { IncomingHttpHeaders, IncomingMessage, ServerResponse } from "http";
 let activeTransports: { [sessionId: string]: SSEServerTransport } = {};
 
 // function flushResponse(_: NextApiResponse) {
-  // const maybeFlush = (res as any).flush;
-  // if (typeof maybeFlush === "function") {
-  //   maybeFlush.call(res);
-  // }
+// const maybeFlush = (res as any).flush;
+// if (typeof maybeFlush === "function") {
+//   maybeFlush.call(res);
+// }
 // }
 
 export default async function handler(
@@ -32,7 +32,10 @@ export default async function handler(
   if (req.method === "GET") {
     try {
       // Instantiate the MCP server.
-      const mcp = new McpServer({ name: `MCP SSE Server for ${req.url}`, version: "1.0.0" });
+      const mcp = new McpServer({
+        name: `MCP SSE Server for ${req.url}`,
+        version: "1.0.0",
+      });
 
       if (!req.headers.host) {
         throw new Error("Missing host header");
@@ -42,7 +45,7 @@ export default async function handler(
       registerTools(mcp, req.headers.host, req.url);
 
       // Create an SSE transport.
-      const endpoint = "/api/mcp/message";
+      const endpoint = "/message";
       const transport = new SSEServerTransport(endpoint, res);
 
       // Connect the MCP server using the transport.
@@ -52,7 +55,11 @@ export default async function handler(
 
       // Store in local map (for same-instance handling)
       activeTransports[sessionId] = transport;
-      console.log(`SSE connection established, sessionId: ${sessionId}, url: ${req.url}. Transport map size: ${Object.keys(activeTransports).length}`);
+      console.log(
+        `SSE connection established, sessionId: ${sessionId}, url: ${
+          req.url
+        }. Transport map size: ${Object.keys(activeTransports).length}`
+      );
 
       // Store in Redis (for cross-instance handling)
       await storeSession(sessionId, {
@@ -60,55 +67,33 @@ export default async function handler(
         userAgent: req.headers["user-agent"],
         createdAt: new Date().toISOString(),
       });
-      res.setHeader('Content-Type', 'text/event-stream');
-      res.setHeader('Cache-Control', 'no-cache, no-transform');
-      res.setHeader('Connection', 'keep-alive');
-      res.setHeader('X-Accel-Buffering', 'no');
-      res.flushHeaders(); // Make sure headers are sent immediately
-      
-      // Send handshake message
-      // await transport.send({
-      //   jsonrpc: "2.0",
-      //   id: "0",
-      //   result: { message: `SSE Connected for ${req.url}`, sessionId },
-      // });
-      // flushResponse(res);
-      // console.log(`SSE connection established for ${req.url}, sessionId: ${sessionId}`);
 
       // Check for any pending messages that might have arrived before this connection
       const pendingMessages = await getPendingMessages(sessionId);
-      console.log(`Pending messages for session ${sessionId}:`, pendingMessages);
+      console.log(
+        `Pending messages for session ${sessionId}:`,
+        pendingMessages
+      );
       if (pendingMessages.length > 0) {
         console.log(
           `Processing ${pendingMessages.length} pending messages for session ${sessionId}`
         );
         for (const msgData of pendingMessages) {
           try {
-            // TODO
-
-            // Make in IncomingMessage object because that is what the SDK expects.
-        const fReq = createFakeIncomingMessage({
-          method: 'POST',
-          url: req.url,
-          // headers: msgData.headers,
-          body: msgData.payload,
-        });
-        const syntheticRes = new ServerResponse(fReq);
-        let status = 100;
-        let body = "";
-        syntheticRes.writeHead = (statusCode: number) => {
-          status = statusCode;
-          return syntheticRes;
-        };
-        syntheticRes.end = (b: unknown) => {
-          body = b as string;
-          return syntheticRes;
-        };
-            console.log(`Sending pending message to session ${sessionId}:`, msgData);
+            // Create a fake IncomingMessage object with the stored data
+            const fReq = createFakeIncomingMessage({
+              method: msgData.method || "POST",
+              url: msgData.url || req.url,
+              headers: msgData.headers || {},
+              body: msgData.payload,
+            });
+            const syntheticRes = new ServerResponse(fReq);
+            console.log(
+              `Sending pending message to session ${sessionId}:`,
+              msgData
+            );
             // Send the message to the transport
-        await transport.handlePostMessage(fReq, syntheticRes);
-            
-            // flushResponse(res);
+            await transport.handlePostMessage(fReq, syntheticRes);
           } catch (error) {
             console.error(`Error sending pending message: ${error}`);
           }
@@ -120,11 +105,14 @@ export default async function handler(
         try {
           const messages = await getPendingMessages(sessionId);
           for (const msgData of messages) {
-            console.log(`Sending polled message to session ${sessionId}:`, msgData);
+            console.log(
+              `Sending polled message to session ${sessionId}:`,
+              msgData
+            );
             const fReq = createFakeIncomingMessage({
-              method: 'POST',
-              url: req.url,
-              // headers: msgData.headers,
+              method: msgData.method || "POST",
+              url: msgData.url || req.url,
+              headers: msgData.headers || {},
               body: msgData.payload,
             });
             const syntheticRes = new ServerResponse(fReq);
@@ -139,12 +127,17 @@ export default async function handler(
               return syntheticRes;
             };
 
-            console.log(`Sending pending message to session ${sessionId}:`, msgData.payload, JSON.stringify(msgData.payload));
+            console.log(
+              `Sending pending message to session ${sessionId}:`,
+              msgData.payload,
+              JSON.stringify(msgData.payload)
+            );
             await transport.handlePostMessage(fReq, syntheticRes);
 
-            console.warn(`Message sent to session ${sessionId} with status ${syntheticRes.statusCode}:`, body);
-
-            // flushResponse(res);
+            console.warn(
+              `Message sent to session ${sessionId} with status ${syntheticRes.statusCode}:`,
+              body
+            );
           }
         } catch (error) {
           console.error("Error polling for messages:", error);
@@ -170,7 +163,7 @@ export default async function handler(
     return;
   }
 
-  // POST /api/mcp/message?sessionId=...: handle incoming messages.
+  // POST /message?sessionId=...: handle incoming messages.
   if (req.method === "POST" && adjustedUrl.pathname.endsWith("/message")) {
     const sessionId = adjustedUrl.searchParams.get("sessionId");
 
@@ -204,7 +197,8 @@ export default async function handler(
       console.log(`Parsed message:`, message);
 
       // Queue the message in Redis for the SSE connection to pick up
-      await queueMessage(sessionId, message);
+      // Now storing headers, method and URL along with the message
+      await queueMessage(sessionId, message, req.headers, req.method, req.url);
 
       // Respond with success
       res.status(200).json({ success: true, queued: true });
@@ -219,7 +213,6 @@ export default async function handler(
 
   res.status(404).end("Not found");
 }
-
 
 // Define the options interface
 interface FakeIncomingMessageOptions {
