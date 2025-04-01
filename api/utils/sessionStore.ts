@@ -6,27 +6,45 @@ if (!redisUrl) {
   throw new Error("REDIS_URL environment variable is not set");
 }
 
-let redis: ReturnType<typeof createClient>;
-let publisher: ReturnType<typeof createClient>;
+// We need separate clients for subscribe and publish operations
+let subscriberClient: ReturnType<typeof createClient> | null = null;
+let publisherClient: ReturnType<typeof createClient> | null = null;
+let regularClient: ReturnType<typeof createClient> | null = null;
 
-// Initialize redis clients lazily
-const getRedisClients = async () => {
-  if (!redis || !publisher) {
-    redis = createClient({ url: redisUrl });
-    publisher = createClient({ url: redisUrl });
-    
-    redis.on("error", (err) => {
+// Get the Redis subscriber client
+const getSubscriberClient = async () => {
+  if (!subscriberClient) {
+    subscriberClient = createClient({ url: redisUrl });
+    subscriberClient.on("error", (err) => {
       console.error("Redis subscriber error:", err);
     });
-    
-    publisher.on("error", (err) => {
+    await subscriberClient.connect();
+  }
+  return subscriberClient;
+};
+
+// Get the Redis publisher client
+const getPublisherClient = async () => {
+  if (!publisherClient) {
+    publisherClient = createClient({ url: redisUrl });
+    publisherClient.on("error", (err) => {
       console.error("Redis publisher error:", err);
     });
-    
-    await Promise.all([redis.connect(), publisher.connect()]);
+    await publisherClient.connect();
   }
-  
-  return { redis, publisher };
+  return publisherClient;
+};
+
+// Get the Redis regular client for key-value operations
+const getRegularClient = async () => {
+  if (!regularClient) {
+    regularClient = createClient({ url: redisUrl });
+    regularClient.on("error", (err) => {
+      console.error("Redis client error:", err);
+    });
+    await regularClient.connect();
+  }
+  return regularClient;
 };
 
 // Session TTL in seconds (30 minutes)
@@ -63,7 +81,7 @@ export async function storeSession(
   sessionId: string,
   metadata: any
 ): Promise<void> {
-  const { redis } = await getRedisClients();
+  const redis = await getRegularClient();
   const key = `${SESSION_PREFIX}${sessionId}`;
   console.log(`Storing session ${sessionId} with metadata:`, metadata);
   await redis.set(
@@ -78,7 +96,7 @@ export async function storeSession(
 }
 
 export async function sessionExists(sessionId: string): Promise<boolean> {
-  const { redis } = await getRedisClients();
+  const redis = await getRegularClient();
   const key = `${SESSION_PREFIX}${sessionId}`;
   const session = await redis.get(key);
   return !!session;
@@ -94,7 +112,7 @@ export async function queueMessage(
   method?: string,
   url?: string
 ): Promise<string> {
-  const { publisher } = await getRedisClients();
+  const publisher = await getPublisherClient();
   const requestId = crypto.randomUUID();
   
   const request: SerializedRequest = {
@@ -118,11 +136,12 @@ export async function subscribeToSessionMessages(
   sessionId: string,
   callback: (message: SerializedRequest) => void
 ): Promise<() => Promise<void>> {
-  const { redis } = await getRedisClients();
+  const subscriber = await getSubscriberClient();
+  const channel = `${REQUEST_CHANNEL_PREFIX}${sessionId}`;
   
-  await redis.subscribe(`${REQUEST_CHANNEL_PREFIX}${sessionId}`, (message) => {
+  await subscriber.subscribe(channel, (message) => {
     try {
-      console.log(`Received message on ${REQUEST_CHANNEL_PREFIX}${sessionId}:`, message);
+      console.log(`Received message on ${channel}:`, message);
       const parsedMessage = JSON.parse(message) as SerializedRequest;
       callback(parsedMessage);
     } catch (error) {
@@ -132,7 +151,7 @@ export async function subscribeToSessionMessages(
   
   // Return unsubscribe function
   return async () => {
-    await redis.unsubscribe(`${REQUEST_CHANNEL_PREFIX}${sessionId}`);
+    await subscriber.unsubscribe(channel);
   };
 }
 
@@ -144,10 +163,10 @@ export async function subscribeToResponse(
   requestId: string,
   callback: (response: { status: number; body: string }) => void
 ): Promise<() => Promise<void>> {
-  const { redis } = await getRedisClients();
+  const subscriber = await getSubscriberClient();
   const responseChannel = `${RESPONSE_CHANNEL_PREFIX}${sessionId}:${requestId}`;
   
-  await redis.subscribe(responseChannel, (message) => {
+  await subscriber.subscribe(responseChannel, (message) => {
     try {
       const response = JSON.parse(message) as { status: number; body: string };
       callback(response);
@@ -158,7 +177,7 @@ export async function subscribeToResponse(
   
   // Return unsubscribe function
   return async () => {
-    await redis.unsubscribe(responseChannel);
+    await subscriber.unsubscribe(responseChannel);
   };
 }
 
@@ -171,7 +190,7 @@ export async function publishResponse(
   status: number,
   body: string
 ): Promise<void> {
-  const { publisher } = await getRedisClients();
+  const publisher = await getPublisherClient();
   const responseChannel = `${RESPONSE_CHANNEL_PREFIX}${sessionId}:${requestId}`;
   
   await publisher.publish(responseChannel, JSON.stringify({ 
