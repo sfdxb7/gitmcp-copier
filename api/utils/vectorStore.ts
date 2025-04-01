@@ -271,7 +271,7 @@ export function chunkReadme(text: string, fileName?: string): string[] {
   }
   
   // Check if this is a special case file (like llms.txt) that needs list-item level chunking
-  const isSpecialListFile = fileName?.toLowerCase().endsWith('llms.txt');
+  const isSpecialListFile = fileName?.toLowerCase().includes('llms.txt');
   
   const chunks: string[] = [];
   
@@ -427,8 +427,8 @@ export function chunkReadme(text: string, fileName?: string): string[] {
           currentChunk = getCurrentHeaderContext() + "\n\n";
           continue;
         } else {
-          // For regular markdown files, keep list items with their section
-          // Simply add the list item to the current chunk
+          // For regular README files, keep list items with their section
+          // Simply add the list item to the current chunk and collect the entire list
           currentChunk += line + "\n";
           i++;
           
@@ -485,12 +485,27 @@ export function chunkReadme(text: string, fileName?: string): string[] {
  * Process documentation text into chunks for vector storage
  * Uses specialized chunking based on content type
  * @param text - Documentation text
+ * @param fileName - Optional file name to determine special chunking behavior
  * @returns Array of text chunks
  */
-export function chunkDocumentation(text: string): string[] {
-  // First try README-specific chunking
+export function chunkDocumentation(text: string, fileName?: string): string[] {
+  // First check if this is a structured document with list items (like llms.txt)
+  if (fileName?.toLowerCase().includes('llms.txt')) {
+    try {
+      // For llms.txt files, each list item should be treated as its own chunk
+      // with section header context
+      const structuredChunks = chunkStructuredDocs(text, fileName);
+      if (structuredChunks.length > 0) {
+        return structuredChunks;
+      }
+    } catch (error) {
+      console.warn("Structured documentation chunking failed for llms.txt, trying README chunker");
+    }
+  }
+  
+  // Then try README-specific chunking
   try {
-    const readmeChunks = chunkReadme(text);
+    const readmeChunks = chunkReadme(text, fileName);
     if (readmeChunks.length > 0) {
       return readmeChunks;
     }
@@ -498,7 +513,7 @@ export function chunkDocumentation(text: string): string[] {
     console.warn("README chunking failed, trying next chunker");
   }
   
-  // Then try structured documentation chunking
+  // Then try structured documentation chunking as fallback
   try {
     const structuredChunks = chunkStructuredDocs(text);
     if (structuredChunks.length > 0) {
@@ -867,11 +882,23 @@ export async function searchDocumentation(
  * @param text - Documentation text in markdown format
  * @returns Array of text chunks with preserved structure
  */
-export function chunkStructuredDocs(text: string): string[] {
+export function chunkStructuredDocs(text: string, fileName?: string): string[] {
+  // Check if this is a special llms.txt file that needs list-item level chunking
+  const isLlmsFile = fileName?.toLowerCase().includes('llms.txt');
+  
   // Quick check to see if this looks like structured documentation
   // Check for both link patterns: [title](url) and nested list items with links
   const hasLinkPatterns = /\[.+?\]\(.+?\)/.test(text);
-  if (!hasLinkPatterns) {
+  const hasListItems = /^[-*]\s+/.test(text);
+  
+  // For llms.txt files, we want to process them even if they don't have link patterns
+  // as long as they have list items
+  if (!isLlmsFile && !hasLinkPatterns) {
+    return chunkText(text);
+  }
+  
+  // For non-llms files that don't have link patterns or list items, use regular chunking
+  if (!isLlmsFile && !hasLinkPatterns && !hasListItems) {
     return chunkText(text);
   }
   
@@ -925,136 +952,87 @@ export function chunkStructuredDocs(text: string): string[] {
     }
   }
   
+  // Find the current section header for context
+  const getCurrentHeader = (lineIndex: number): string => {
+    let headerContext = "";
+    let currentHeaderLevel = Number.MAX_SAFE_INTEGER;
+    
+    for (const header of headers) {
+      if (header.lineIndex < lineIndex && header.level <= currentHeaderLevel) {
+        headerContext = `${'#'.repeat(header.level)} ${header.title}`;
+        currentHeaderLevel = header.level;
+        
+        // If it's the main h1 header, we don't need to go further
+        // This ensures we get the nearest section header, not the document title
+        if (header.level === 1 && headers.some(h => h.level === 2 && h.lineIndex < lineIndex)) {
+          continue;
+        }
+        
+        // We found a direct section header (h2 or h3)
+        if (header.level === 2 || header.level === 3) {
+          break;
+        }
+      }
+    }
+    
+    return headerContext;
+  };
+  
   // Step 2: Process each list item as its own chunk with section context
   let i = 0;
   while (i < lines.length) {
     const line = lines[i].trim();
     
-    // Find the current section header for context
-    const getCurrentHeader = (lineIndex: number): string => {
-      let headerContext = "";
-      let currentHeaderLevel = Number.MAX_SAFE_INTEGER;
-      
-      for (const header of headers) {
-        if (header.lineIndex < lineIndex && header.level <= currentHeaderLevel) {
-          headerContext = `${'#'.repeat(header.level)} ${header.title}`;
-          currentHeaderLevel = header.level;
-          
-          // If it's the main h1 header, we don't need to go further
-          // This ensures we get the nearest section header, not the document title
-          if (header.level === 1 && headers.some(h => h.level === 2 && h.lineIndex < lineIndex)) {
-            continue;
-          }
-          
-          // We found a direct section header (h2 or h3)
-          if (header.level === 2 || header.level === 3) {
-            break;
-          }
-        }
-      }
-      
-      return headerContext;
-    };
-    
     // Look for list items (bullet points)
     if (line.startsWith("- ") || line.startsWith("* ")) {
-      // Check if this list item has a link pattern
-      const linkMatch = line.match(/^[-*]\s+\[([^\]]+)\]\(([^)]+)\)(?:\s*:\s*(.+))?/);
+      // For llms.txt files, ALWAYS create separate chunks for each list item
+      // regardless of whether it contains a link pattern or not
       
-      if (linkMatch) {
-        let itemTitle = linkMatch[1];
-        let itemUrl = linkMatch[2];
-        let itemDesc = linkMatch[3] || "";
-        let itemContent = `- [${itemTitle}](${itemUrl})`;
+      // Start with the current line as the item content
+      let itemContent = line;
+      let j = i + 1;
+      
+      // Look for continuation of the description on subsequent lines
+      while (j < lines.length) {
+        const nextLine = lines[j].trim();
         
-        if (itemDesc) {
-          itemContent += `: ${itemDesc}`;
+        // Stop if we hit another list item or header
+        if (nextLine.startsWith("- ") || nextLine.startsWith("* ") || 
+            nextLine.match(/^#{1,6}\s+/)) {
+          break;
         }
         
-        // Look for continuation of the description on subsequent lines
-        let j = i + 1;
-        while (j < lines.length) {
-          const nextLine = lines[j].trim();
+        // Add non-empty lines to description
+        if (nextLine !== "") {
+          itemContent += "\n" + nextLine;
+          j++;
+        } else {
+          // Skip empty line
+          j++;
           
-          // Stop if we hit another list item or header
-          if (nextLine.startsWith("- ") || nextLine.startsWith("* ") || 
-              nextLine.match(/^#{1,6}\s+/)) {
-            break;
-          }
-          
-          // Add non-empty lines to description
-          if (nextLine !== "") {
-            itemContent += "\n" + nextLine;
-            j++;
-          } else {
-            // Skip empty line
-            j++;
-            
-            // But check if next line is a new item or different content
-            if (j < lines.length) {
-              const lineAfterBlank = lines[j].trim();
-              if (lineAfterBlank.startsWith("- ") || lineAfterBlank.startsWith("* ") ||
-                  lineAfterBlank.match(/^#{1,6}\s+/)) {
-                break;
-              }
+          // But check if next line is a new item or different content
+          if (j < lines.length) {
+            const lineAfterBlank = lines[j].trim();
+            if (lineAfterBlank.startsWith("- ") || lineAfterBlank.startsWith("* ") ||
+                lineAfterBlank.match(/^#{1,6}\s+/)) {
+              break;
             }
           }
         }
-        
-        // Get header context for this item
-        const headerContext = getCurrentHeader(i);
-        
-        // Create a separate chunk for this list item with its section context
-        if (headerContext) {
-          chunks.push(`${headerContext}\n\n${itemContent}`);
-        } else {
-          chunks.push(itemContent);
-        }
-        
-        i = j;
-        continue;
-      } else {
-        // Handle plain list items without links
-        let itemContent = line;
-        let j = i + 1;
-        
-        // Look for continuation on subsequent lines
-        while (j < lines.length) {
-          const nextLine = lines[j].trim();
-          
-          if (nextLine.startsWith("- ") || nextLine.startsWith("* ") || 
-              nextLine.match(/^#{1,6}\s+/)) {
-            break;
-          }
-          
-          if (nextLine !== "") {
-            itemContent += "\n" + nextLine;
-            j++;
-          } else {
-            j++;
-            if (j < lines.length) {
-              const lineAfterBlank = lines[j].trim();
-              if (lineAfterBlank.startsWith("- ") || lineAfterBlank.startsWith("* ") ||
-                  lineAfterBlank.match(/^#{1,6}\s+/)) {
-                break;
-              }
-            }
-          }
-        }
-        
-        // Get header context for this item
-        const headerContext = getCurrentHeader(i);
-        
-        // Create a separate chunk for this plain list item with its section context
-        if (headerContext) {
-          chunks.push(`${headerContext}\n\n${itemContent}`);
-        } else {
-          chunks.push(itemContent);
-        }
-        
-        i = j;
-        continue;
       }
+      
+      // Get header context for this item
+      const headerContext = getCurrentHeader(i);
+      
+      // Create a separate chunk for this list item with its section context
+      if (headerContext) {
+        chunks.push(`${headerContext}\n\n${itemContent}`);
+      } else {
+        chunks.push(itemContent);
+      }
+      
+      i = j;
+      continue;
     }
     
     // Look for section headers (## or ###)
@@ -1099,52 +1077,55 @@ export function chunkStructuredDocs(text: string): string[] {
     i++;
   }
   
-  // Handle nested list structures - try to find groups of related list items
-  // This section looks for bullet point listings that might represent subtopics under a topic
-  i = 0;
-  while (i < lines.length) {
-    const line = lines[i].trim();
-    
-    // Look for header followed by list items
-    if (line.match(/^#{1,6}\s+/)) {
-      const headerText = line.replace(/^#{1,6}\s+/, '');
-      let listGroup = `${line}`;
-      let j = i + 1;
-      let hasListItems = false;
+  // For non-llms files or if we didn't find many chunks with our list-item approach, 
+  // try the header-based grouping approach
+  if (!isLlmsFile || chunks.length < 3) {
+    // Handle nested list structures - try to find groups of related list items
+    i = 0;
+    while (i < lines.length) {
+      const line = lines[i].trim();
       
-      // Skip blank lines
-      while (j < lines.length && lines[j].trim() === "") {
-        j++;
-      }
-      
-      // Check if followed by list items
-      while (j < lines.length) {
-        const listLine = lines[j].trim();
+      // Look for header followed by list items
+      if (line.match(/^#{1,6}\s+/)) {
+        const headerText = line.replace(/^#{1,6}\s+/, '');
+        let listGroup = `${line}`;
+        let j = i + 1;
+        let hasListItems = false;
         
-        // Add list items to the group
-        if (listLine.startsWith("- ") || listLine.startsWith("* ")) {
-          hasListItems = true;
-          listGroup += "\n" + listLine;
+        // Skip blank lines
+        while (j < lines.length && lines[j].trim() === "") {
           j++;
-        } else if (listLine === "" && hasListItems && j+1 < lines.length && 
-                  (lines[j+1].trim().startsWith("- ") || lines[j+1].trim().startsWith("* "))) {
-          // Empty line between list items
-          j++;
-        } else {
-          break;
         }
+        
+        // Check if followed by list items
+        while (j < lines.length) {
+          const listLine = lines[j].trim();
+          
+          // Add list items to the group
+          if (listLine.startsWith("- ") || listLine.startsWith("* ")) {
+            hasListItems = true;
+            listGroup += "\n" + listLine;
+            j++;
+          } else if (listLine === "" && hasListItems && j+1 < lines.length && 
+                    (lines[j+1].trim().startsWith("- ") || lines[j+1].trim().startsWith("* "))) {
+            // Empty line between list items
+            j++;
+          } else {
+            break;
+          }
+        }
+        
+        // If we found list items, add as a chunk
+        if (hasListItems) {
+          chunks.push(listGroup);
+        }
+        
+        i = j;
+        continue;
       }
       
-      // If we found list items, add as a chunk
-      if (hasListItems) {
-        chunks.push(listGroup);
-      }
-      
-      i = j;
-      continue;
+      i++;
     }
-    
-    i++;
   }
   
   // Filter out duplicate chunks and very short chunks
