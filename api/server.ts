@@ -64,7 +64,7 @@ export default async function handler(
       // Send handshake message
       await transport.send({
         jsonrpc: "2.0",
-        id: sessionId,
+        id: 0,
         result: { message: `SSE Connected for ${req.url}`, sessionId },
       });
       // flushResponse(res);
