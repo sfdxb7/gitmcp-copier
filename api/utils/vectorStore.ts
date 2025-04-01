@@ -839,172 +839,138 @@ export function chunkStructuredDocs(text: string): string[] {
   // Step 2: Get header context at a given position
   function getHeaderContext(lineIndex: number): string {
     const relevantHeaders = [];
-    const minHeaderLevels: Record<number, number> = {};
+    let lastHeadersByLevel: Record<number, HeaderInfo> = {};
     
     // Find all headers that appear before this line
     for (const header of headers) {
-      if (header.lineIndex < lineIndex) {
-        // If we haven't seen this header level yet, or if this header
-        // appears after the last one we recorded for this level
-        if (
-          minHeaderLevels[header.level] === undefined || 
-          header.lineIndex > minHeaderLevels[header.level]
-        ) {
-          minHeaderLevels[header.level] = header.lineIndex;
-        }
+      if (header.lineIndex <= lineIndex) {
+        lastHeadersByLevel[header.level] = header;
+        
+        // If we encounter a header of level N, we should discard any headers of level > N
+        Object.keys(lastHeadersByLevel)
+          .map(Number)
+          .filter(level => level > header.level)
+          .forEach(level => delete lastHeadersByLevel[level]);
       }
     }
     
     // Build the relevant header context, from most general to most specific
-    const levels = Object.keys(minHeaderLevels)
+    const levels = Object.keys(lastHeadersByLevel)
       .map(Number)
       .sort((a, b) => a - b);
       
     for (const level of levels) {
-      const headerIndex = headers.findIndex(
-        h => h.level === level && h.lineIndex === minHeaderLevels[level]
-      );
-      
-      if (headerIndex !== -1) {
-        relevantHeaders.push(`${'#'.repeat(headers[headerIndex].level)} ${headers[headerIndex].title}`);
-      }
+      const header = lastHeadersByLevel[level];
+      relevantHeaders.push(`${'#'.repeat(header.level)} ${header.title}`);
     }
     
     return relevantHeaders.join('\n\n');
   }
   
   // Step 3: Process documentation with improved link and list item handling
-  let currentEntry = '';
-  let entryStartLine = 0;
-  let inEntry = false;
-  let inLinkList = false;
-  let currentHeaderContext = '';
+  let currentChunk = '';
+  let collectingDescription = false;
+  let lastHeaderContext = '';
   
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const trimmedLine = line.trim();
+    const headerContext = getHeaderContext(i);
     
     // Check if this line is a header
     if (trimmedLine.match(/^#{1,6}\s+/)) {
-      // If we were in an entry, save it
-      if (inEntry && currentEntry.trim()) {
-        chunks.push(currentEntry.trim());
+      // Save header as a chunk with its context
+      const headerChunk = `${headerContext}`;
+      if (headerChunk.trim()) {
+        chunks.push(headerChunk.trim());
       }
       
-      // Update header context for subsequent entries
-      currentHeaderContext = getHeaderContext(i);
-      
-      // Headers are also saved as separate chunks with their context
-      const headerChunk = `${currentHeaderContext}${currentHeaderContext ? '\n\n' : ''}${trimmedLine}`;
-      chunks.push(headerChunk.trim());
-      
-      // Reset tracking
-      currentEntry = '';
-      inEntry = false;
-      inLinkList = false;
+      // Update our tracking
+      lastHeaderContext = headerContext;
+      collectingDescription = false;
+      currentChunk = '';
       continue;
     }
     
-    // Detect link patterns: [Title](URL) or - [Title](URL)
-    const linkMatch = trimmedLine.match(/^(?:[-*]\s*)?\[.+?\]\(.+?\)(?::.*)?$/);
+    // Check if this line is a link item (standalone or in a list)
+    const linkPattern = /^(?:[-*]\s*)?\[.+?\]\(.+?\)(?::.*)?$/;
+    if (linkPattern.test(trimmedLine)) {
+      // If we were collecting a description for a previous link, save that chunk
+      if (collectingDescription && currentChunk.trim()) {
+        chunks.push(currentChunk.trim());
+      }
+      
+      // Start a new chunk with this link item
+      currentChunk = `${headerContext}${headerContext ? '\n\n' : ''}${trimmedLine}`;
+      collectingDescription = true;
+      continue;
+    }
     
-    if (linkMatch) {
-      // If we're starting a new list of links
-      if (!inLinkList) {
-        // If we were in another type of entry, save it first
-        if (inEntry && currentEntry.trim()) {
-          chunks.push(currentEntry.trim());
-          currentEntry = '';
-        }
-        
-        // Start tracking a link list
-        inLinkList = true;
-        inEntry = true;
-        entryStartLine = i;
-        currentEntry = `${currentHeaderContext}${currentHeaderContext ? '\n\n' : ''}${trimmedLine}`;
-      } 
-      // Continuation of link list
-      else {
-        // If this is a new link item but in the same list, create a new chunk with context
-        const fullEntry = `${currentHeaderContext}${currentHeaderContext ? '\n\n' : ''}${currentEntry.trim()}\n\n${trimmedLine}`;
-        chunks.push(fullEntry.trim());
-        
-        // Start a new current entry with this line
-        currentEntry = `${currentHeaderContext}${currentHeaderContext ? '\n\n' : ''}${trimmedLine}`;
-      }
-    }
-    // Handle link description text (usually after a colon)
-    else if (inLinkList && trimmedLine.length > 0 && !trimmedLine.startsWith('-') && !trimmedLine.startsWith('*')) {
-      // Append the description to the current entry
-      currentEntry += '\n' + trimmedLine;
+    // Check if this is a description line for a link (non-empty, not starting with list marker or header)
+    if (collectingDescription && trimmedLine.length > 0 && 
+        !trimmedLine.startsWith('-') && !trimmedLine.startsWith('*') && 
+        !trimmedLine.match(/^#{1,6}\s+/)) {
       
-      // If description is substantial, save as a chunk with its link
-      if (trimmedLine.length > 20) {
-        const fullEntry = `${currentHeaderContext}${currentHeaderContext ? '\n\n' : ''}${currentEntry.trim()}`;
-        chunks.push(fullEntry.trim());
+      // Add this line to the current description
+      currentChunk += '\n' + trimmedLine;
+      
+      // Check if next line is a new link item or empty - if so, save this chunk
+      if (i === lines.length - 1 || 
+          lines[i+1].trim() === '' || 
+          linkPattern.test(lines[i+1].trim()) ||
+          lines[i+1].trim().match(/^#{1,6}\s+/)) {
+        
+        chunks.push(currentChunk.trim());
+        currentChunk = '';
+        collectingDescription = false;
       }
+      continue;
     }
-    // Handle regular non-link paragraphs
-    else if (trimmedLine.length > 0 && !inLinkList) {
-      // Start a new regular entry if we weren't in one
-      if (!inEntry) {
-        inEntry = true;
-        entryStartLine = i;
-        currentEntry = `${currentHeaderContext}${currentHeaderContext ? '\n\n' : ''}${trimmedLine}`;
+    
+    // Handle empty lines - they might end the current chunk
+    if (trimmedLine === '') {
+      if (collectingDescription && currentChunk.trim()) {
+        chunks.push(currentChunk.trim());
+        currentChunk = '';
+        collectingDescription = false;
       }
-      // Continue an existing paragraph
-      else {
-        currentEntry += '\n' + trimmedLine;
+      continue;
+    }
+    
+    // Handle regular paragraphs (not links or headers)
+    if (trimmedLine.length > 0 && !collectingDescription) {
+      // Start a new paragraph chunk
+      currentChunk = `${headerContext}${headerContext ? '\n\n' : ''}${trimmedLine}`;
+      
+      // Look ahead to collect the entire paragraph
+      let j = i + 1;
+      while (j < lines.length && lines[j].trim() !== '' && 
+             !lines[j].trim().match(/^#{1,6}\s+/) && 
+             !linkPattern.test(lines[j].trim())) {
+        currentChunk += '\n' + lines[j].trim();
+        j++;
       }
       
-      // If we hit a substantial paragraph, save it as its own chunk
-      if (currentEntry.length > 200) {
-        chunks.push(currentEntry.trim());
-        currentEntry = '';
-        inEntry = false;
+      // Save the paragraph as a chunk
+      if (currentChunk.trim()) {
+        chunks.push(currentChunk.trim());
       }
-    }
-    // Handle empty lines - they might separate entries
-    else if (trimmedLine.length === 0) {
-      // If we were in a link list, empty line might end it
-      if (inLinkList && i < lines.length - 1) {
-        // Check if the next non-empty line doesn't start with a link or list marker
-        let nextNonEmptyIdx = i + 1;
-        while (nextNonEmptyIdx < lines.length && lines[nextNonEmptyIdx].trim() === '') {
-          nextNonEmptyIdx++;
-        }
-        
-        if (nextNonEmptyIdx < lines.length) {
-          const nextNonEmpty = lines[nextNonEmptyIdx].trim();
-          // If next line is not a link or list item, end the link list
-          if (!nextNonEmpty.match(/^(?:[-*]\s*)?\[.+?\]\(.+?\)/)) {
-            inLinkList = false;
-            
-            // Save the current entry if it's not already saved
-            if (inEntry && currentEntry.trim()) {
-              chunks.push(currentEntry.trim());
-              currentEntry = '';
-              inEntry = false;
-            }
-          }
-        }
-      }
-      // For regular paragraphs, empty line might separate them
-      else if (inEntry && currentEntry.trim()) {
-        chunks.push(currentEntry.trim());
-        currentEntry = '';
-        inEntry = false;
-      }
+      
+      // Update position (skip the lines we've processed)
+      i = j - 1;
+      currentChunk = '';
     }
   }
   
-  // Add the last entry if we were processing one
-  if (inEntry && currentEntry.trim()) {
-    chunks.push(currentEntry.trim());
+  // Add the last chunk if we have one
+  if (currentChunk.trim()) {
+    chunks.push(currentChunk.trim());
   }
   
   // Filter out duplicate chunks and very short chunks
-  const uniqueChunks = Array.from(new Set(chunks)).filter(chunk => chunk.length > 20);
+  const uniqueChunks = Array.from(new Set(chunks))
+    .filter(chunk => chunk.length > 10)
+    .map(chunk => chunk.trim());
   
   // If we didn't find any chunks with our approach, fall back to standard chunking
   if (uniqueChunks.length === 0) {
