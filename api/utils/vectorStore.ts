@@ -263,7 +263,7 @@ export function chunkReadme(text: string, fileName?: string): string[] {
   // Check if this appears to be a README format
   const hasMultipleHeadings = (text.match(/^#+\s+.+/gm) || []).length > 1;
   const hasCodeBlocks = text.includes("```");
-  const isReadmeLike = hasMultipleHeadings && (hasCodeBlocks || text.includes("* "));
+  const isReadmeLike = hasMultipleHeadings && (hasCodeBlocks || text.includes("* ") || text.includes("- "));
   
   // If not README-like, use the regular chunking
   if (!isReadmeLike) {
@@ -628,12 +628,14 @@ interface VectorMetadata {
  * @param owner - Repository owner
  * @param repo - Repository name
  * @param content - Documentation content
+ * @param fileName - documentation file name
  * @returns Number of vectors stored
  */
 export async function storeDocumentationVectors(
   owner: string,
   repo: string,
-  content: string
+  content: string,
+  fileName: string
 ): Promise<number> {
   try {
     console.log(`Storing vectors for ${owner}/${repo}`);
@@ -656,7 +658,7 @@ export async function storeDocumentationVectors(
     }
     
     // Use specialized documentation chunking for better results
-    const chunks = chunkDocumentation(content);
+    const chunks = chunkDocumentation(content, fileName);
     console.log(`Created ${chunks.length} chunks for ${owner}/${repo}`);
     
     // Generate embeddings and upsert vectors
@@ -884,23 +886,23 @@ export async function searchDocumentation(
  */
 export function chunkStructuredDocs(text: string, fileName?: string): string[] {
   // Check if this is a special llms.txt file that needs list-item level chunking
-  const isLlmsFile = fileName?.toLowerCase().includes('llms.txt');
+//   const isLlmsFile = fileName?.toLowerCase().includes('llms.txt');
   
-  // Quick check to see if this looks like structured documentation
-  // Check for both link patterns: [title](url) and nested list items with links
-  const hasLinkPatterns = /\[.+?\]\(.+?\)/.test(text);
-  const hasListItems = /^[-*]\s+/.test(text);
+//   // Quick check to see if this looks like structured documentation
+//   // Check for both link patterns: [title](url) and nested list items with links
+//   const hasLinkPatterns = /\[.+?\]\(.+?\)/.test(text);
+//   const hasListItems = /^[-*]\s+/.test(text);
   
-  // For llms.txt files, we want to process them even if they don't have link patterns
-  // as long as they have list items
-  if (!isLlmsFile && !hasLinkPatterns) {
-    return chunkText(text);
-  }
+//   // For llms.txt files, we want to process them even if they don't have link patterns
+//   // as long as they have list items
+//   if (!isLlmsFile && !hasLinkPatterns) {
+//     return chunkText(text);
+//   }
   
-  // For non-llms files that don't have link patterns or list items, use regular chunking
-  if (!isLlmsFile && !hasLinkPatterns && !hasListItems) {
-    return chunkText(text);
-  }
+//   // For non-llms files that don't have link patterns or list items, use regular chunking
+//   if (!isLlmsFile && !hasLinkPatterns && !hasListItems) {
+//     return chunkText(text);
+//   }
   
   const chunks: string[] = [];
   const lines = text.split('\n');
@@ -1079,54 +1081,54 @@ export function chunkStructuredDocs(text: string, fileName?: string): string[] {
   
   // For non-llms files or if we didn't find many chunks with our list-item approach, 
   // try the header-based grouping approach
-  if (!isLlmsFile || chunks.length < 3) {
-    // Handle nested list structures - try to find groups of related list items
-    i = 0;
-    while (i < lines.length) {
-      const line = lines[i].trim();
+//   if (!isLlmsFile || chunks.length < 3) {
+//     // Handle nested list structures - try to find groups of related list items
+//     i = 0;
+//     while (i < lines.length) {
+//       const line = lines[i].trim();
       
-      // Look for header followed by list items
-      if (line.match(/^#{1,6}\s+/)) {
-        const headerText = line.replace(/^#{1,6}\s+/, '');
-        let listGroup = `${line}`;
-        let j = i + 1;
-        let hasListItems = false;
+//       // Look for header followed by list items
+//       if (line.match(/^#{1,6}\s+/)) {
+//         const headerText = line.replace(/^#{1,6}\s+/, '');
+//         let listGroup = `${line}`;
+//         let j = i + 1;
+//         let hasListItems = false;
         
-        // Skip blank lines
-        while (j < lines.length && lines[j].trim() === "") {
-          j++;
-        }
+//         // Skip blank lines
+//         while (j < lines.length && lines[j].trim() === "") {
+//           j++;
+//         }
         
-        // Check if followed by list items
-        while (j < lines.length) {
-          const listLine = lines[j].trim();
+//         // Check if followed by list items
+//         while (j < lines.length) {
+//           const listLine = lines[j].trim();
           
-          // Add list items to the group
-          if (listLine.startsWith("- ") || listLine.startsWith("* ")) {
-            hasListItems = true;
-            listGroup += "\n" + listLine;
-            j++;
-          } else if (listLine === "" && hasListItems && j+1 < lines.length && 
-                    (lines[j+1].trim().startsWith("- ") || lines[j+1].trim().startsWith("* "))) {
-            // Empty line between list items
-            j++;
-          } else {
-            break;
-          }
-        }
+//           // Add list items to the group
+//           if (listLine.startsWith("- ") || listLine.startsWith("* ")) {
+//             hasListItems = true;
+//             listGroup += "\n" + listLine;
+//             j++;
+//           } else if (listLine === "" && hasListItems && j+1 < lines.length && 
+//                     (lines[j+1].trim().startsWith("- ") || lines[j+1].trim().startsWith("* "))) {
+//             // Empty line between list items
+//             j++;
+//           } else {
+//             break;
+//           }
+//         }
         
-        // If we found list items, add as a chunk
-        if (hasListItems) {
-          chunks.push(listGroup);
-        }
+//         // If we found list items, add as a chunk
+//         if (hasListItems) {
+//           chunks.push(listGroup);
+//         }
         
-        i = j;
-        continue;
-      }
+//         i = j;
+//         continue;
+//       }
       
-      i++;
-    }
-  }
+//       i++;
+//     }
+//   }
   
   // Filter out duplicate chunks and very short chunks
   const uniqueChunks = Array.from(new Set(chunks))
