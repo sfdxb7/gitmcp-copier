@@ -407,40 +407,17 @@ async function fetchDocumentation({
       for (const location of possibleLocations) {
         // Check main branch first (matching original priority)
         const mainResult = results.find(
-          (r) =>
-            r.location === location &&
-            r.branch === "main" &&
-            r.content !== null,
+          (r) => r.location === location && r.content !== null,
         );
         if (mainResult) {
           content = mainResult.content;
-          fileUsed = `${mainResult.location} (main branch)`;
+          fileUsed = `${mainResult.location} (${mainResult.branch} branch)`;
           await cacheFilePath(
             owner,
             repo,
             "llms.txt",
             mainResult.location,
-            "main",
-          );
-          break;
-        }
-
-        // Then check master branch (matching original priority)
-        const masterResult = results.find(
-          (r) =>
-            r.location === location &&
-            r.branch === "master" &&
-            r.content !== null,
-        );
-        if (masterResult) {
-          content = masterResult.content;
-          fileUsed = `${masterResult.location} (master branch)`;
-          await cacheFilePath(
-            owner,
-            repo,
-            "llms.txt",
-            masterResult.location,
-            "master",
+            mainResult.branch,
           );
           break;
         }
