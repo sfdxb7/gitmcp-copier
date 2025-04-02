@@ -1,7 +1,6 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { ClipboardCopy } from "lucide-react";
-import { getRepoData } from "../../shared/repoData.ts";
-import Content from "./content.tsx";
+import React from "react";
+import { getRepoData } from "../../shared/repoData.js";
+import Content from "./content.js";
 
 export default async function Page({
   searchParams,
