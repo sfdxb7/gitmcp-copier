@@ -1,13 +1,15 @@
 import React from "react";
-import { getRepoData } from "../../shared/repoData.ts";
-import Content from "./content.tsx";
+import { getRepoData } from "../../shared/repoData";
+import Content from "./content";
 
 export default async function Page({
   searchParams,
 }: {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
-  const { url, host } = (await searchParams) as { url?: string; host: string };
+  const { url } = (await searchParams) as { url?: string; host: string };
+  const originalUrl = new URL(url || "");
+  const host = originalUrl.host;
 
   const { subdomain, path, owner, repo } = getRepoData(host, url);
 

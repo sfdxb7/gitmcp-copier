@@ -6,6 +6,7 @@ import {
   storeDocumentationVectors,
 } from "../utils/vectorStore.js";
 import { getRepoData } from "../../shared/repoData.js";
+import htmlToMd from "html-to-md";
 
 // Helper: fetch a file from a URL.
 async function fetchFile(url: string): Promise<string | null> {
@@ -43,26 +44,6 @@ async function searchGitHubRepo(
   filename: string,
 ): Promise<string | null> {
   try {
-    // First check the cache
-    const cachedPath = await getCachedFilePath(owner, repo, filename);
-    if (cachedPath) {
-      const content = await fetchFileFromGitHub(
-        owner,
-        repo,
-        cachedPath.branch,
-        cachedPath.path,
-      );
-      if (content) {
-        console.log(`Cache hit for ${filename} in ${owner}/${repo}`);
-        return content;
-      } else {
-        console.log(
-          `Cache hit but file not found anymore for ${filename} in ${owner}/${repo}`,
-        );
-      }
-    }
-
-    // If not in cache or cached path didn't work, use GitHub Search API
     const searchUrl = `https://api.github.com/search/code?q=filename:${filename}+repo:${owner}/${repo}`;
 
     const response = await fetch(searchUrl, {
@@ -153,7 +134,7 @@ export function registerTools(
 export function registerStdioTools(mcp: McpServer) {
   mcp.tool(
     "fetch_documentation",
-    "Fetch documentation for a repository (URL will be provided when called).",
+    "Fetch the entire documentation file for the repository (URL will be provided when called).",
     {
       requestUrl: z.string(),
     },
@@ -171,7 +152,7 @@ export function registerStdioTools(mcp: McpServer) {
 
   mcp.tool(
     "search_documentation",
-    "Search documentation for a repository (URL will be provided when called).",
+    "Search documentation for the repository (URL will be provided when called). It searches within the documentation file. It doesn't provide additional information.",
     {
       requestUrl: z.string(),
       query: z
@@ -253,9 +234,9 @@ function generateSearchToolDescription(
     );
 
     if (subdomain && path) {
-      description = `Semantically search the documentation from the ${subdomain}/${path} GitHub Pages.`;
+      description = `Semantically search within the fetched document from the ${subdomain}/${path} GitHub Pages. It doesn't add additional information to the fetch tool.`;
     } else if (owner && repo) {
-      description = `Semantically search documentation from GitHub repository: ${owner}/${repo}.`;
+      description = `Semantically search  within the fetched document from GitHub repository: ${owner}/${repo}.  It doesn't add additional information to the fetch tool.`;
     }
 
     return description;
@@ -279,7 +260,7 @@ function generateToolDescription(
     console.log("Generating tool description for host:", requestUrl);
 
     // Default description as fallback
-    let description = "Fetch documentation for the current repository.";
+    let description = "Fetch documentation file for the current repository.";
 
     const { subdomain, path, owner, repo } = getRepoData(
       requestHost,
@@ -349,9 +330,29 @@ async function fetchDocumentation({
   if (subdomain && path) {
     // Map to github.io
     const baseURL = `https://${subdomain}.github.io/${path}/`;
+
+    // First try to fetch llms.txt
     content = await fetchFile(baseURL + "llms.txt");
-    fileUsed = "llms.txt";
+    if (content) {
+      fileUsed = "llms.txt";
+    } else {
+      // If llms.txt is not found, fall back to the landing page
+      console.warn(`llms.txt not found at ${baseURL}, trying base URL`);
+      const htmlContent = await fetchFile(baseURL);
+      try {
+        if (htmlContent) {
+          // Convert HTML to Markdown for proper processing
+          content = htmlToMd(htmlContent);
+          fileUsed = "landing page (index.html, converted to Markdown)";
+        }
+      } catch (error) {
+        console.warn(
+          `Error converting HTML to Markdown for ${baseURL}: ${error}`,
+        );
+      }
+    }
   }
+
   // Check for github repo pattern: gitmcp.io/{owner}/{repo} or git-mcp.vercel.app/{owner}/{repo}
   else if (owner && repo) {
     // First check if we have a cached path for llms.txt
@@ -370,7 +371,6 @@ async function fetchDocumentation({
 
     // If no cached path or cached path failed, try static paths
     if (!content) {
-      // Try static paths for llms.txt
       const possibleLocations = [
         "docs/docs/llms.txt", // Current default
         "llms.txt", // Root directory
@@ -378,25 +378,66 @@ async function fetchDocumentation({
         "documentation/llms.txt", // Alternative docs folder
       ];
 
-      // Try each location on 'main' branch first, then 'master' branch
-      for (const location of possibleLocations) {
-        // Try main branch
-        content = await fetchFileFromGitHub(owner, repo, "main", location);
+      // Create array of all location+branch combinations to try
+      const fetchPromises = possibleLocations.flatMap((location) => [
+        {
+          promise: fetchFileFromGitHub(owner, repo, "main", location),
+          location,
+          branch: "main",
+        },
+        {
+          promise: fetchFileFromGitHub(owner, repo, "master", location),
+          location,
+          branch: "master",
+        },
+      ]);
 
-        if (content) {
-          fileUsed = `${location} (main branch)`;
-          // Cache the successful path
-          await cacheFilePath(owner, repo, "llms.txt", location, "main");
+      // Execute all fetch promises in parallel
+      const results = await Promise.all(
+        fetchPromises.map(async ({ promise, location, branch }) => {
+          const content = await promise;
+          return { content, location, branch };
+        }),
+      );
+
+      for (const location of possibleLocations) {
+        // Check main branch first (matching original priority)
+        const mainResult = results.find(
+          (r) =>
+            r.location === location &&
+            r.branch === "main" &&
+            r.content !== null,
+        );
+        if (mainResult) {
+          content = mainResult.content;
+          fileUsed = `${mainResult.location} (main branch)`;
+          await cacheFilePath(
+            owner,
+            repo,
+            "llms.txt",
+            mainResult.location,
+            "main",
+          );
           break;
         }
 
-        // Try master branch
-        content = await fetchFileFromGitHub(owner, repo, "master", location);
-
-        if (content) {
-          fileUsed = `${location} (master branch)`;
-          // Cache the successful path
-          await cacheFilePath(owner, repo, "llms.txt", location, "master");
+        // Then check master branch (matching original priority)
+        const masterResult = results.find(
+          (r) =>
+            r.location === location &&
+            r.branch === "master" &&
+            r.content !== null,
+        );
+        if (masterResult) {
+          content = masterResult.content;
+          fileUsed = `${masterResult.location} (master branch)`;
+          await cacheFilePath(
+            owner,
+            repo,
+            "llms.txt",
+            masterResult.location,
+            "master",
+          );
           break;
         }
       }

@@ -40,7 +40,7 @@ export default function Content({
     return <div>Documentation MCP</div>;
   })();
 
-  const serverName = `${repo ?? path} Docs`;
+  const serverName = (repo ?? path) ? `${repo ?? path} Docs` : "MCP Docs";
 
   const [copied, setCopied] = useState(false);
 
@@ -123,6 +123,7 @@ export default function Content({
   "mcpServers": {
     "${serverName}": {
       "url": "${url}"
+    }
   }
 }`}
               </pre>

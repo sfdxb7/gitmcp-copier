@@ -1,10 +1,16 @@
 import { createClient } from "redis";
+import { Mutex } from "async-mutex";
 
 // Initialize Redis client
 const redisUrl = process.env.REDIS_URL || process.env.KV_URL;
 if (!redisUrl) {
   throw new Error("REDIS_URL environment variable is not set");
 }
+
+// Add mutexes for thread-safe client initialization
+const subscriberMutex = new Mutex();
+const publisherMutex = new Mutex();
+const regularMutex = new Mutex();
 
 // We need separate clients for subscribe and publish operations
 let subscriberClient: ReturnType<typeof createClient> | null = null;
@@ -49,7 +55,7 @@ console.info(`Initialized session store with instance ID: ${INSTANCE_ID}`);
 const getSubscriberClient = async () => {
   const now = Date.now();
 
-  // Check if client exists and if it's been too long since last usage
+  // Fast path: If client is ready and recently used, return it immediately without locking
   if (
     subscriberClient &&
     subscriberClient.isReady &&
@@ -59,80 +65,93 @@ const getSubscriberClient = async () => {
     return subscriberClient;
   }
 
-  // Create new client or reconnect existing one
-  if (!subscriberClient || !subscriberClient.isReady) {
-    console.info(`[${INSTANCE_ID}] Creating new Redis subscriber client`);
+  // Slow path: Need to initialize or check client, use mutex to prevent race conditions
+  return subscriberMutex.runExclusive(async () => {
+    // Check again in case another call initialized the client while we were waiting
+    if (
+      subscriberClient &&
+      subscriberClient.isReady &&
+      now - lastSubscriberUsage < CLIENT_HEALTH_CHECK_INTERVAL
+    ) {
+      lastSubscriberUsage = now;
+      return subscriberClient;
+    }
 
-    // Clean up old client if it exists
-    if (subscriberClient) {
-      try {
-        await subscriberClient
-          .quit()
-          .catch((err) =>
-            console.error("Error quitting old subscriber client:", err),
-          );
-      } catch (e) {
-        // Ignore errors during cleanup
+    // Create new client or reconnect existing one
+    if (!subscriberClient || !subscriberClient.isReady) {
+      console.info(`[${INSTANCE_ID}] Creating new Redis subscriber client`);
+
+      // Clean up old client if it exists
+      if (subscriberClient) {
+        try {
+          await subscriberClient
+            .quit()
+            .catch((err) =>
+              console.error("Error quitting old subscriber client:", err),
+            );
+        } catch (e) {
+          // Ignore errors during cleanup
+        }
+        subscriberClient = null;
       }
-      subscriberClient = null;
-    }
 
-    subscriberClient = createClient({
-      url: redisUrl,
-      socket: {
-        keepAlive: 20000, // Keep the socket alive every 20s
-        reconnectStrategy: (retries) => {
-          const delay = Math.min(retries * 100, 3000);
-          console.info(
-            `[${INSTANCE_ID}] Subscriber reconnecting in ${delay}ms, attempt ${retries}`,
-          );
-          return delay;
+      subscriberClient = createClient({
+        url: redisUrl,
+        socket: {
+          keepAlive: 20000, // Keep the socket alive every 20s
+          reconnectStrategy: (retries) => {
+            const delay = Math.min(retries * 100, 3000);
+            console.info(
+              `[${INSTANCE_ID}] Subscriber reconnecting in ${delay}ms, attempt ${retries}`,
+            );
+            return delay;
+          },
         },
-      },
-    });
+      });
 
-    subscriberClient.on("error", (err) => {
-      console.error(`[${INSTANCE_ID}] Redis subscriber error:`, err);
-    });
+      subscriberClient.on("error", (err) => {
+        console.error(`[${INSTANCE_ID}] Redis subscriber error:`, err);
+      });
 
-    subscriberClient.on("connect", () => {
-      console.info(`[${INSTANCE_ID}] Redis subscriber connected`);
-    });
+      subscriberClient.on("connect", () => {
+        console.info(`[${INSTANCE_ID}] Redis subscriber connected`);
+      });
 
-    subscriberClient.on("reconnecting", () => {
-      console.info(`[${INSTANCE_ID}] Redis subscriber reconnecting...`);
-    });
+      subscriberClient.on("reconnecting", () => {
+        console.info(`[${INSTANCE_ID}] Redis subscriber reconnecting...`);
+      });
 
-    subscriberClient.on("end", () => {
-      console.info(`[${INSTANCE_ID}] Redis subscriber connection closed`);
-      subscriberClient = null;
-    });
+      subscriberClient.on("end", () => {
+        console.info(`[${INSTANCE_ID}] Redis subscriber connection closed`);
+        subscriberClient = null;
+      });
 
-    console.debug(`[${INSTANCE_ID}] Connecting Redis subscriber client...`);
-    try {
-      await subscriberClient.connect();
-      console.info(
-        `[${INSTANCE_ID}] Redis subscriber client connected successfully`,
-      );
-    } catch (error) {
-      console.error(
-        `[${INSTANCE_ID}] Failed to connect Redis subscriber client:`,
-        error,
-      );
-      subscriberClient = null;
-      throw error;
+      console.debug(`[${INSTANCE_ID}] Connecting Redis subscriber client...`);
+      try {
+        await subscriberClient.connect();
+        console.info(
+          `[${INSTANCE_ID}] Redis subscriber client connected successfully`,
+        );
+      } catch (error) {
+        console.error(
+          `[${INSTANCE_ID}] Failed to connect Redis subscriber client:`,
+          error,
+        );
+        subscriberClient = null;
+        throw error;
+      }
     }
-  }
 
-  lastSubscriberUsage = now;
-  return subscriberClient;
+    lastSubscriberUsage = now;
+    return subscriberClient;
+  });
 };
 
 // Get the Redis publisher client
 const getPublisherClient = async () => {
   const now = Date.now();
 
-  // Check if client exists and if it's been too long since last usage
+  // Fast path: If client is ready and recently used, return it immediately without locking
   if (
     publisherClient &&
     publisherClient.isReady &&
@@ -142,80 +161,93 @@ const getPublisherClient = async () => {
     return publisherClient;
   }
 
-  // Create new client or reconnect existing one
-  if (!publisherClient || !publisherClient.isReady) {
-    console.info(`[${INSTANCE_ID}] Creating new Redis publisher client`);
+  // Slow path: Need to initialize or check client, use mutex to prevent race conditions
+  return publisherMutex.runExclusive(async () => {
+    // Check again in case another call initialized the client while we were waiting
+    if (
+      publisherClient &&
+      publisherClient.isReady &&
+      now - lastPublisherUsage < CLIENT_HEALTH_CHECK_INTERVAL
+    ) {
+      lastPublisherUsage = now;
+      return publisherClient;
+    }
 
-    // Clean up old client if it exists
-    if (publisherClient) {
-      try {
-        await publisherClient
-          .quit()
-          .catch((err) =>
-            console.error("Error quitting old publisher client:", err),
-          );
-      } catch (e) {
-        // Ignore errors during cleanup
+    // Create new client or reconnect existing one
+    if (!publisherClient || !publisherClient.isReady) {
+      console.info(`[${INSTANCE_ID}] Creating new Redis publisher client`);
+
+      // Clean up old client if it exists
+      if (publisherClient) {
+        try {
+          await publisherClient
+            .quit()
+            .catch((err) =>
+              console.error("Error quitting old publisher client:", err),
+            );
+        } catch (e) {
+          // Ignore errors during cleanup
+        }
+        publisherClient = null;
       }
-      publisherClient = null;
-    }
 
-    publisherClient = createClient({
-      url: redisUrl,
-      socket: {
-        keepAlive: 20000,
-        reconnectStrategy: (retries) => {
-          const delay = Math.min(retries * 100, 3000);
-          console.info(
-            `[${INSTANCE_ID}] Publisher reconnecting in ${delay}ms, attempt ${retries}`,
-          );
-          return delay;
+      publisherClient = createClient({
+        url: redisUrl,
+        socket: {
+          keepAlive: 20000,
+          reconnectStrategy: (retries) => {
+            const delay = Math.min(retries * 100, 3000);
+            console.info(
+              `[${INSTANCE_ID}] Publisher reconnecting in ${delay}ms, attempt ${retries}`,
+            );
+            return delay;
+          },
         },
-      },
-    });
+      });
 
-    publisherClient.on("error", (err) => {
-      console.error(`[${INSTANCE_ID}] Redis publisher error:`, err);
-    });
+      publisherClient.on("error", (err) => {
+        console.error(`[${INSTANCE_ID}] Redis publisher error:`, err);
+      });
 
-    publisherClient.on("connect", () => {
-      console.info(`[${INSTANCE_ID}] Redis publisher connected`);
-    });
+      publisherClient.on("connect", () => {
+        console.info(`[${INSTANCE_ID}] Redis publisher connected`);
+      });
 
-    publisherClient.on("reconnecting", () => {
-      console.info(`[${INSTANCE_ID}] Redis publisher reconnecting...`);
-    });
+      publisherClient.on("reconnecting", () => {
+        console.info(`[${INSTANCE_ID}] Redis publisher reconnecting...`);
+      });
 
-    publisherClient.on("end", () => {
-      console.info(`[${INSTANCE_ID}] Redis publisher connection closed`);
-      publisherClient = null;
-    });
+      publisherClient.on("end", () => {
+        console.info(`[${INSTANCE_ID}] Redis publisher connection closed`);
+        publisherClient = null;
+      });
 
-    console.debug(`[${INSTANCE_ID}] Connecting Redis publisher client...`);
-    try {
-      await publisherClient.connect();
-      console.info(
-        `[${INSTANCE_ID}] Redis publisher client connected successfully`,
-      );
-    } catch (error) {
-      console.error(
-        `[${INSTANCE_ID}] Failed to connect Redis publisher client:`,
-        error,
-      );
-      publisherClient = null;
-      throw error;
+      console.debug(`[${INSTANCE_ID}] Connecting Redis publisher client...`);
+      try {
+        await publisherClient.connect();
+        console.info(
+          `[${INSTANCE_ID}] Redis publisher client connected successfully`,
+        );
+      } catch (error) {
+        console.error(
+          `[${INSTANCE_ID}] Failed to connect Redis publisher client:`,
+          error,
+        );
+        publisherClient = null;
+        throw error;
+      }
     }
-  }
 
-  lastPublisherUsage = now;
-  return publisherClient;
+    lastPublisherUsage = now;
+    return publisherClient;
+  });
 };
 
 // Get the Redis regular client for key-value operations
 const getRegularClient = async () => {
   const now = Date.now();
 
-  // Check if client exists and if it's been too long since last usage
+  // Fast path: If client is ready and recently used, return it immediately without locking
   if (
     regularClient &&
     regularClient.isReady &&
@@ -225,73 +257,86 @@ const getRegularClient = async () => {
     return regularClient;
   }
 
-  // Create new client or reconnect existing one
-  if (!regularClient || !regularClient.isReady) {
-    console.info(`[${INSTANCE_ID}] Creating new Redis regular client`);
+  // Slow path: Need to initialize or check client, use mutex to prevent race conditions
+  return regularMutex.runExclusive(async () => {
+    // Check again in case another call initialized the client while we were waiting
+    if (
+      regularClient &&
+      regularClient.isReady &&
+      now - lastRegularUsage < CLIENT_HEALTH_CHECK_INTERVAL
+    ) {
+      lastRegularUsage = now;
+      return regularClient;
+    }
 
-    // Clean up old client if it exists
-    if (regularClient) {
-      try {
-        await regularClient
-          .quit()
-          .catch((err) =>
-            console.error("Error quitting old regular client:", err),
-          );
-      } catch (e) {
-        // Ignore errors during cleanup
+    // Create new client or reconnect existing one
+    if (!regularClient || !regularClient.isReady) {
+      console.info(`[${INSTANCE_ID}] Creating new Redis regular client`);
+
+      // Clean up old client if it exists
+      if (regularClient) {
+        try {
+          await regularClient
+            .quit()
+            .catch((err) =>
+              console.error("Error quitting old regular client:", err),
+            );
+        } catch (e) {
+          // Ignore errors during cleanup
+        }
+        regularClient = null;
       }
-      regularClient = null;
-    }
 
-    regularClient = createClient({
-      url: redisUrl,
-      socket: {
-        keepAlive: 20000,
-        reconnectStrategy: (retries) => {
-          const delay = Math.min(retries * 100, 3000);
-          console.info(
-            `[${INSTANCE_ID}] Regular client reconnecting in ${delay}ms, attempt ${retries}`,
-          );
-          return delay;
+      regularClient = createClient({
+        url: redisUrl,
+        socket: {
+          keepAlive: 20000,
+          reconnectStrategy: (retries) => {
+            const delay = Math.min(retries * 100, 3000);
+            console.info(
+              `[${INSTANCE_ID}] Regular client reconnecting in ${delay}ms, attempt ${retries}`,
+            );
+            return delay;
+          },
         },
-      },
-    });
+      });
 
-    regularClient.on("error", (err) => {
-      console.error(`[${INSTANCE_ID}] Redis regular client error:`, err);
-    });
+      regularClient.on("error", (err) => {
+        console.error(`[${INSTANCE_ID}] Redis regular client error:`, err);
+      });
 
-    regularClient.on("connect", () => {
-      console.info(`[${INSTANCE_ID}] Redis regular client connected`);
-    });
+      regularClient.on("connect", () => {
+        console.info(`[${INSTANCE_ID}] Redis regular client connected`);
+      });
 
-    regularClient.on("reconnecting", () => {
-      console.info(`[${INSTANCE_ID}] Redis regular client reconnecting...`);
-    });
+      regularClient.on("reconnecting", () => {
+        console.info(`[${INSTANCE_ID}] Redis regular client reconnecting...`);
+      });
 
-    regularClient.on("end", () => {
-      console.info(`[${INSTANCE_ID}] Redis regular client connection closed`);
-      regularClient = null;
-    });
+      regularClient.on("end", () => {
+        console.info(`[${INSTANCE_ID}] Redis regular client connection closed`);
+        regularClient = null;
+      });
 
-    console.debug(`[${INSTANCE_ID}] Connecting Redis regular client...`);
-    try {
-      await regularClient.connect();
-      console.info(
-        `[${INSTANCE_ID}] Redis regular client connected successfully`,
-      );
-    } catch (error) {
-      console.error(
-        `[${INSTANCE_ID}] Failed to connect Redis regular client:`,
-        error,
-      );
-      regularClient = null;
-      throw error;
+      console.debug(`[${INSTANCE_ID}] Connecting Redis regular client...`);
+      try {
+        await regularClient.connect();
+        console.info(
+          `[${INSTANCE_ID}] Redis regular client connected successfully`,
+        );
+      } catch (error) {
+        console.error(
+          `[${INSTANCE_ID}] Failed to connect Redis regular client:`,
+          error,
+        );
+        regularClient = null;
+        throw error;
+      }
     }
-  }
 
-  lastRegularUsage = now;
-  return regularClient;
+    lastRegularUsage = now;
+    return regularClient;
+  });
 };
 
 export interface SessionMessage {
@@ -445,14 +490,8 @@ export async function queueMessage(
   url?: string,
 ): Promise<string> {
   try {
-    const publisher = await getPublisherClient();
     const requestId = crypto.randomUUID();
-
-    // Ensure Redis client is still connected
-    if (!publisher.isReady) {
-      await publisher.connect();
-      console.info("Redis publisher reconnected");
-    }
+    const channel = `${REQUEST_CHANNEL_PREFIX}${sessionId}`;
 
     const request: SerializedRequest = {
       requestId,
@@ -463,16 +502,19 @@ export async function queueMessage(
     };
 
     console.debug(
-      `Publishing message to ${REQUEST_CHANNEL_PREFIX}${sessionId} with requestId ${requestId}`,
-    );
-    await publisher.publish(
-      `${REQUEST_CHANNEL_PREFIX}${sessionId}`,
-      JSON.stringify(request),
-    );
-    console.debug(
-      `Successfully published message to ${REQUEST_CHANNEL_PREFIX}${sessionId}`,
+      `Queueing message for ${channel} with requestId ${requestId}`,
     );
 
+    // Get a publisher client - this already uses mutex internally
+    const publisher = await getPublisherClient();
+
+    // Publish the message
+    const payload = JSON.stringify(request);
+    await publisher.publish(channel, payload);
+
+    console.debug(
+      `Successfully published message to ${channel} with requestId ${requestId}`,
+    );
     return requestId;
   } catch (error) {
     console.error(
@@ -531,33 +573,36 @@ export async function subscribeToSessionMessages(
 
     // Return unsubscribe function
     return async () => {
-      try {
-        console.debug(`Unsubscribing from channel ${channel}...`);
+      // Use the mutex to protect unsubscribe operation
+      return subscriberMutex.runExclusive(async () => {
+        try {
+          console.debug(`Unsubscribing from channel ${channel}...`);
 
-        // Ensure Redis client is still connected before unsubscribing
-        if (!subscriber?.isReady) {
-          console.debug(
-            `Redis subscriber not ready, skipping explicit unsubscribe for ${channel}`,
-          );
-        } else {
-          await subscriber.unsubscribe(channel);
-          console.info(`Successfully unsubscribed from ${channel}`);
+          // Ensure Redis client is still connected before unsubscribing
+          if (!subscriber?.isReady) {
+            console.debug(
+              `Redis subscriber not ready, skipping explicit unsubscribe for ${channel}`,
+            );
+          } else {
+            await subscriber.unsubscribe(channel);
+            console.info(`Successfully unsubscribed from ${channel}`);
+          }
+
+          // Remove from local tracking
+          activeSubscriptionSessions.delete(sessionId);
+
+          // Decrement subscriber count in Redis
+          await decrementSubscriberCount(sessionId);
+        } catch (error) {
+          console.error(`Error unsubscribing from ${channel}:`, error);
+
+          // Still try to clean up counter and local tracking even if unsubscribe fails
+          activeSubscriptionSessions.delete(sessionId);
+          await decrementSubscriberCount(sessionId);
+
+          throw error;
         }
-
-        // Remove from local tracking
-        activeSubscriptionSessions.delete(sessionId);
-
-        // Decrement subscriber count in Redis
-        await decrementSubscriberCount(sessionId);
-      } catch (error) {
-        console.error(`Error unsubscribing from ${channel}:`, error);
-
-        // Still try to clean up counter and local tracking even if unsubscribe fails
-        activeSubscriptionSessions.delete(sessionId);
-        await decrementSubscriberCount(sessionId);
-
-        throw error;
-      }
+      });
     };
   } catch (error) {
     console.error(
@@ -642,34 +687,37 @@ export async function subscribeToResponse(
 
     // Return unsubscribe function
     return async () => {
-      try {
-        console.debug(
-          `[${INSTANCE_ID}] Unsubscribing from response channel ${responseChannel}...`,
-        );
-
-        // Ensure Redis client is still connected before unsubscribing
-        if (!subscriber?.isReady) {
+      // Use the mutex to protect unsubscribe operation
+      return subscriberMutex.runExclusive(async () => {
+        try {
           console.debug(
-            `[${INSTANCE_ID}] Redis subscriber not ready, skipping explicit unsubscribe for ${responseChannel}`,
+            `[${INSTANCE_ID}] Unsubscribing from response channel ${responseChannel}...`,
           );
-        } else {
-          await subscriber.unsubscribe(responseChannel);
-          console.info(
-            `[${INSTANCE_ID}] Successfully unsubscribed from response channel ${responseChannel}`,
-          );
-        }
 
-        // Remove from active subscriptions tracking
-        activeSubscriptions.delete(responseChannel);
-      } catch (error) {
-        console.error(
-          `[${INSTANCE_ID}] Error unsubscribing from response channel ${responseChannel}:`,
-          error,
-        );
-        // Still clean up our tracking
-        activeSubscriptions.delete(responseChannel);
-        throw error;
-      }
+          // Ensure Redis client is still connected before unsubscribing
+          if (!subscriber?.isReady) {
+            console.debug(
+              `[${INSTANCE_ID}] Redis subscriber not ready, skipping explicit unsubscribe for ${responseChannel}`,
+            );
+          } else {
+            await subscriber.unsubscribe(responseChannel);
+            console.info(
+              `[${INSTANCE_ID}] Successfully unsubscribed from response channel ${responseChannel}`,
+            );
+          }
+
+          // Remove from active subscriptions tracking
+          activeSubscriptions.delete(responseChannel);
+        } catch (error) {
+          console.error(
+            `[${INSTANCE_ID}] Error unsubscribing from response channel ${responseChannel}:`,
+            error,
+          );
+          // Still clean up our tracking
+          activeSubscriptions.delete(responseChannel);
+          throw error;
+        }
+      });
     };
   } catch (error) {
     console.error(

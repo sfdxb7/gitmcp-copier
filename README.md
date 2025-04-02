@@ -1,7 +1,11 @@
 # GitMCP
 
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/7ee9e775-f765-4384-a7bb-7e1322429508" width="30%" height="30%">
+  <picture>
+  <source srcset="https://github.com/user-attachments/assets/3afe89b9-a06c-4a39-9362-197cbd16edc1" media="(prefers-color-scheme: light)">
+  <source srcset="https://github.com/user-attachments/assets/49f70125-89a9-4508-86f6-11da0cb2b124" media="(prefers-color-scheme: dark)">
+  <img src="logo-light.png" alt="Logo" width=30% height=30%">
+</picture>
 </p>
 
 <p align="center">
@@ -62,9 +66,13 @@ Yes, GitMCP is compatible with any AI assistant supporting the Model Context Pro
 
 Absolutely! GitMCP works with any public GitHub repository without requiring any modifications. It prioritizes the `llms.txt` file and falls back to `README.md` if the former is unavailable. Future updates aim to support additional documentation methods and even generate content dynamically.
 
-### Is there any cost associated with using GitMCP?
+### Does GitMCP cost money?
 
-No, GitMCP is provided as a free service to the community, with no associated costs.
+No, GitMCP is a free service to the community with no associated costs.
+
+## Privacy
+
+GitMCP doesn't store any personally identifiable information or queries.
 
 ## Contributing
 

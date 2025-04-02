@@ -40,19 +40,28 @@ export default async function handler(
   );
 
   const adjustedUrl = new URL(req.url || "", `http://${req.headers.host}`);
+  // clean search params
+  adjustedUrl.searchParams.forEach((value, key) => {
+    if (key !== "sessionId") {
+      adjustedUrl.searchParams.delete(key);
+    }
+  });
+  // clean hash
+  adjustedUrl.hash = "";
+  const adjustedUrlString = adjustedUrl.toString();
+
   console.debug(
-    `[${INSTANCE_ID}:${requestId}] Adjusted URL: ${adjustedUrl.toString()}`,
+    `[${INSTANCE_ID}:${requestId}] Adjusted URL: ${adjustedUrlString}`,
   );
 
   if (req.method === "GET") {
     const isSSE = req.headers.accept?.includes("text/event-stream");
+    console.debug(`[${INSTANCE_ID}:${requestId}] GET request, isSSE: ${isSSE}`);
     if (!isSSE) {
-      return res.redirect(
-        "/_/?url=" +
-          encodeURIComponent(req.url || "") +
-          "&host=" +
-          encodeURIComponent(req.headers.host || ""),
+      console.debug(
+        `[${INSTANCE_ID}:${requestId}] Redirecting to /_?url=${encodeURIComponent(adjustedUrlString)}`,
       );
+      return res.redirect("/_?url=" + encodeURIComponent(adjustedUrlString));
     }
 
     try {
@@ -68,7 +77,7 @@ export default async function handler(
 
       // Instantiate the MCP server.
       const mcp = new McpServer({
-        name: `MCP SSE Server for ${req.url}`,
+        name: `MCP SSE Server for ${adjustedUrlString}`,
         version: "1.0.0",
       });
       console.debug(`[${INSTANCE_ID}:${requestId}] MCP server instantiated`);
@@ -78,7 +87,7 @@ export default async function handler(
       }
 
       // Register the "fetch_documentation" tool.
-      registerTools(mcp, req.headers.host, req.url);
+      registerTools(mcp, req.headers.host, adjustedUrlString);
       console.debug(`[${INSTANCE_ID}:${requestId}] Tools registered`);
 
       // Create an SSE transport.
@@ -468,102 +477,160 @@ export default async function handler(
 
       // Set up a subscription to listen for a response
       let responseTimeout: NodeJS.Timeout;
+      let unsubscribeFunction: () => Promise<void>;
 
       console.debug(
         `[${INSTANCE_ID}:${requestId}] Setting up response subscription for ${sessionId}:${messageRequestId} (trace: ${messageTraceId})`,
       );
-      const unsubscribe = await subscribeToResponse(
-        sessionId,
-        messageRequestId,
-        (response) => {
-          console.info(
-            `[${INSTANCE_ID}:${requestId}] Response received for ${sessionId}:${messageRequestId}, status: ${response.status} (trace: ${messageTraceId})`,
-          );
 
-          if (responseTimeout) {
-            clearTimeout(responseTimeout);
-          }
+      // Helper function to set up response subscription with proper cleanup
+      async function setupResponseSubscription(
+        sessionId: string,
+        requestId: string,
+        traceId: string,
+        logRequestId: string,
+        res: NextApiResponse,
+        onResponse: (cleanup: () => Promise<void>) => void,
+      ) {
+        // First create the unsubscribe function so it's available for the callbacks
+        const unsubscribePromise = subscribeToResponse(
+          sessionId,
+          requestId,
+          async (response) => {
+            console.info(
+              `[${INSTANCE_ID}:${logRequestId}] Response received for ${sessionId}:${requestId}, status: ${response.status} (trace: ${traceId})`,
+            );
 
-          // Ensure we only respond once
+            // Ensure we only respond once by using the provided callback
+            try {
+              // Return the response to the client
+              res.status(response.status).send(response.body);
+              console.debug(
+                `[${INSTANCE_ID}:${logRequestId}] Response sent to client for ${sessionId}:${requestId} (trace: ${traceId})`,
+              );
+            } catch (error) {
+              console.error(
+                `[${INSTANCE_ID}:${logRequestId}] Error sending response to client for ${requestId} (trace: ${traceId}):`,
+                error,
+              );
+            }
+
+            // Call the onResponse callback which will handle cleanup
+            onResponse(unsubscribe);
+          },
+        );
+
+        // Store the unsubscribe function
+        const unsubscribe = await unsubscribePromise;
+
+        return {
+          unsubscribe,
+          handleResponse: async (response: {
+            status: number;
+            body: string;
+          }) => {
+            console.info(
+              `[${INSTANCE_ID}:${logRequestId}] Handling response for ${sessionId}:${requestId} (trace: ${traceId})`,
+            );
+
+            try {
+              res.status(response.status).send(response.body);
+              console.debug(
+                `[${INSTANCE_ID}:${logRequestId}] Response sent to client for ${sessionId}:${requestId} (trace: ${traceId})`,
+              );
+            } catch (error) {
+              console.error(
+                `[${INSTANCE_ID}:${logRequestId}] Error sending response to client for ${requestId} (trace: ${traceId}):`,
+                error,
+              );
+            }
+
+            // Cleanup after handling
+            onResponse(unsubscribe);
+          },
+        };
+      }
+
+      try {
+        // Create the unsubscribe function before using it in callbacks
+        const { unsubscribe, handleResponse } = await setupResponseSubscription(
+          sessionId,
+          messageRequestId,
+          messageTraceId,
+          requestId,
+          res,
+          (cleanup) => {
+            if (responseTimeout) {
+              clearTimeout(responseTimeout);
+            }
+            hasResponded = true;
+            return cleanup();
+          },
+        );
+
+        // Save for later use in timeout and close handlers
+        unsubscribeFunction = unsubscribe;
+
+        // Add a timeout for the response - using 5 seconds for all requests
+        responseTimeout = setTimeout(async () => {
           if (hasResponded) {
-            console.warn(
-              `[${INSTANCE_ID}:${requestId}] Already responded to client for ${messageRequestId}, skipping duplicate response (trace: ${messageTraceId})`,
+            console.debug(
+              `[${INSTANCE_ID}:${requestId}] Already responded for ${messageRequestId}, not sending timeout response (trace: ${messageTraceId})`,
             );
             return;
           }
 
           hasResponded = true;
+          console.warn(
+            `[${INSTANCE_ID}:${requestId}] Request timed out waiting for response: ${sessionId}:${messageRequestId} (trace: ${messageTraceId})`,
+          );
 
-          // Return the response to the client
-          try {
-            res.status(response.status).send(response.body);
-            console.debug(
-              `[${INSTANCE_ID}:${requestId}] Response sent to client for ${sessionId}:${messageRequestId} (trace: ${messageTraceId})`,
-            );
-          } catch (error) {
-            console.error(
-              `[${INSTANCE_ID}:${requestId}] Error sending response to client for ${messageRequestId} (trace: ${messageTraceId}):`,
-              error,
-            );
-          }
+          // Return 202 to indicate message was accepted but is still being processed
+          res.status(202).json({
+            status: "accepted",
+            message: "Message accepted but processing in another instance",
+            requestId: messageRequestId,
+            trace: messageTraceId,
+          });
 
-          // Clean up the subscription
-          unsubscribe().catch((err) => {
+          // Clean up the subscription after responding, but don't wait for it
+          unsubscribeFunction().catch((err) => {
             console.error(
-              `[${INSTANCE_ID}:${requestId}] Error unsubscribing from response channel for ${messageRequestId} (trace: ${messageTraceId}):`,
+              `[${INSTANCE_ID}:${requestId}] Error unsubscribing after timeout for ${messageRequestId} (trace: ${messageTraceId}):`,
               err,
             );
           });
-        },
-      );
+        }, 7000); // 7 seconds for all requests
 
-      // Add a timeout for the response - using 10 seconds for all requests
-      responseTimeout = setTimeout(async () => {
-        if (hasResponded) {
+        // Clean up subscription when request is closed
+        req.on("close", async () => {
           console.debug(
-            `[${INSTANCE_ID}:${requestId}] Already responded for ${messageRequestId}, not sending timeout response (trace: ${messageTraceId})`,
+            `[${INSTANCE_ID}:${requestId}] Client closed connection for ${sessionId}:${messageRequestId} (trace: ${messageTraceId})`,
           );
-          return;
-        }
-
-        hasResponded = true;
-        console.warn(
-          `[${INSTANCE_ID}:${requestId}] Request timed out waiting for response: ${sessionId}:${messageRequestId} (trace: ${messageTraceId})`,
-        );
-
-        // Return 202 to indicate message was accepted but is still being processed
-        res.status(202).json({
-          status: "accepted",
-          message: "Message accepted but processing in another instance",
-          requestId: messageRequestId,
-          trace: messageTraceId,
+          if (responseTimeout) {
+            clearTimeout(responseTimeout);
+          }
+          if (!hasResponded) {
+            await unsubscribeFunction().catch((err) => {
+              console.error(
+                `[${INSTANCE_ID}:${requestId}] Error unsubscribing on close for ${messageRequestId} (trace: ${messageTraceId}):`,
+                err,
+              );
+            });
+          }
         });
-
-        // Clean up the subscription after responding, but don't wait for it
-        unsubscribe().catch((err) => {
-          console.error(
-            `[${INSTANCE_ID}:${requestId}] Error unsubscribing after timeout for ${messageRequestId} (trace: ${messageTraceId}):`,
-            err,
-          );
-        });
-      }, 6000); // 6 seconds for all requests
-      // Clean up subscription when request is closed
-      req.on("close", async () => {
-        console.debug(
-          `[${INSTANCE_ID}:${requestId}] Client closed connection for ${sessionId}:${messageRequestId} (trace: ${messageTraceId})`,
+      } catch (subscriptionError) {
+        console.error(
+          `[${INSTANCE_ID}:${requestId}] Error setting up response subscription (trace: ${messageTraceId}):`,
+          subscriptionError,
         );
-        if (responseTimeout) {
-          clearTimeout(responseTimeout);
-        }
-        if (!hasResponded) {
-          await unsubscribe().catch((err) => {
-            console.error(
-              `[${INSTANCE_ID}:${requestId}] Error unsubscribing on close for ${messageRequestId} (trace: ${messageTraceId}):`,
-              err,
-            );
-          });
-        }
-      });
+        res.status(500).json({
+          error:
+            subscriptionError instanceof Error
+              ? subscriptionError.message
+              : String(subscriptionError),
+        });
+      }
     } catch (error) {
       console.error(
         `[${INSTANCE_ID}:${requestId}] Error handling POST message (trace: ${messageTraceId}):`,

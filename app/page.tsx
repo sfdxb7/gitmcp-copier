@@ -23,7 +23,8 @@ export default function Home() {
               <img src="/icon.png" alt="GitMCP Logo" className="h-auto w-80" />
             </div>
             <p className="max-w-3xl mx-auto text-3xl text-gray-300 sm:text-3xl ">
-              Instantly create an MCP server for any GitHub repository
+              Instantly create an MCP server for any GitHub project Instantly
+              create an MCP server for any GitHub project
             </p>
           </div>
         </div>
@@ -36,8 +37,8 @@ export default function Home() {
             <h2 className="text-3xl font-bold">What is GitMCP?</h2>
             <p className="mt-4 text-xl text-gray-300 max-w-3xl mx-auto">
               GitMCP creates a dedicated Model Context Protocol (MCP) server for
-              any GitHub repository, enabling AI assistants to understand your
-              code in context.
+              any GitHub project, enabling AI assistants to understand your code
+              in context.
             </p>
           </div>
 
@@ -48,7 +49,7 @@ export default function Home() {
               </div>
               <h3 className="text-xl font-semibold mb-2">Code Understanding</h3>
               <p className="text-gray-400">
-                AI assistants gain deep context of your codebase structure,
+                AI assistants gain a deep context of your codebase structure,
                 making their responses more accurate and relevant.
               </p>
             </div>
@@ -92,6 +93,15 @@ export default function Home() {
                 <div className="mx-4 text-gray-500">→</div>
                 <div className="flex-1 flex items-center text-emerald-400 text-lg font-mono px-4">
                   gitmcp.io/username/repo
+                </div>
+              </div>
+              <div className="bg-gray-800 border border-gray-700 rounded-lg p-4 mb-8 flex items-center">
+                <div className="flex-1 flex items-center justify-end text-gray-300 text-lg font-mono px-4">
+                  username.github.io/repo
+                </div>
+                <div className="mx-4 text-gray-500">→</div>
+                <div className="flex-1 flex items-center text-emerald-400 text-lg font-mono px-4">
+                  username.github.io/repo
                 </div>
               </div>
               <p className="text-xl text-gray-300 max-w-3xl mx-auto">

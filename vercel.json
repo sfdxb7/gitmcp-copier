@@ -10,7 +10,7 @@
       "source": "/:path((?!_)(?!.*\\.png$).+)",
       "destination": "/api/server"
     },
-    { "source": "/_/", "destination": "/doc" }
+    { "source": "/_", "destination": "/doc" }
   ],
   "functions": {
     "api/server.ts": {

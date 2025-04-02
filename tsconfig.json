@@ -1,11 +1,8 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
-    "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
@@ -13,7 +10,11 @@
     "outDir": "dist",
     "declaration": true,
     "sourceMap": true,
-    "lib": ["dom", "dom.iterable", "esnext"],
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
     "allowJs": true,
     "noEmit": true,
     "incremental": true,
@@ -23,7 +24,9 @@
       {
         "name": "next"
       }
-    ]
+    ],
+    "module": "esnext",
+    "moduleResolution": "node"
   },
   "include": [
     "api/*",
@@ -32,7 +35,10 @@
     "app/**/*",
     "scripts/**/*",
     ".next/types/**/*.ts",
-    "shared/**/*"
+    "shared/**/*",
+    "shared/*"
   ],
-  "exclude": ["node_modules"]
+  "exclude": [
+    "node_modules"
+  ]
 }
