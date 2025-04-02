@@ -3,12 +3,13 @@ export function getRepoData(
   requestUrl?: string,
 ): { subdomain?: string; path?: string; owner?: string; repo?: string } {
   // Parse the URL if provided
-  let fullUrl = new URL(`http://${requestHost}`);
+  const protocol = requestHost.includes("localhost") ? "http" : "https";
+  let fullUrl = new URL(`${protocol}://${requestHost}`);
   if (requestUrl) {
     if (requestUrl.startsWith("/")) {
-      fullUrl = new URL(`http://${requestHost}${requestUrl}`);
+      fullUrl = new URL(`${protocol}://${requestHost}${requestUrl}`);
     } else {
-      fullUrl = new URL(`${requestUrl}`);
+      fullUrl = new URL(`${protocol}://${requestUrl}`);
     }
   }
   const path = fullUrl.pathname.split("/").filter(Boolean).join("/");
