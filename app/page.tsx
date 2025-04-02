@@ -17,7 +17,7 @@ export default function Home() {
       {/* Hero Section */}
       <div className="relative overflow-hidden">
         <div className="absolute inset-0 bg-grid-gray-800 [mask-image:linear-gradient(0deg,rgba(17,24,39,0.7),rgba(17,24,39,0.5))] bg-[length:20px_20px]"></div>
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 sm:py-16">
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 sm:py-16 sm:pb-6">
           <div className="text-center">
             <div className="flex justify-center">
               <img
@@ -26,23 +26,22 @@ export default function Home() {
                 className="h-auto w-80"
               />
             </div>
-            <p className="max-w-3xl mx-auto text-3xl text-gray-300 sm:text-[72px] font-bold tracking-tight my-6">
+            <h1 className="max-w-4xl mx-auto text-5xl sm:text-[72px] font-bold tracking-tight my-6 bg-gradient-to-r from-blue-500 via-emerald-400 to-purple-500 text-gradient animate-gradient-x">
               GitMCP
-            </p>
-            <p className="max-w-3xl mx-auto text-3xl text-gray-300 sm:text-3xl font-light tracking-tight">
-              Instantly create an MCP server for any GitHub project
+            </h1>
+            <p className="max-w-3xl mx-auto text-xl sm:text-3xl font-light tracking-tight text-gray-300/90 leading-relaxed">
+              Instantly create an{" "}
+              <span className="text-emerald-400 font-medium">MCP server</span>{" "}
+              for any GitHub project
             </p>
           </div>
         </div>
       </div>
 
       {/* How It Works Section */}
-      <section className="py-16 bg-gray-900 pt-2">
+      <section id="how-it-works" className="py-16 bg-gray-900 pt-0">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
-            <h2 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 text-gradient">
-              How It Works
-            </h2>
             <div className="mt-6 max-w-3xl mx-auto">
               <div className="bg-gray-800 border border-gray-700 rounded-lg p-4 mb-8 flex items-center">
                 <div className="flex-1 flex items-center justify-end text-gray-300 text-lg font-mono px-4">
