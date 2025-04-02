@@ -14,6 +14,7 @@
   <a href="#usage">Usage</a> •
   <a href="#examples">Examples</a> •
   <a href="#faq">FAQ</a> •
+  <a href="#privacy">Privacy</a> •
   <a href="#contributing">Contributing</a> •
   <a href="#license">License</a>
 </p>
