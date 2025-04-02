@@ -1,6 +1,6 @@
 import React from "react";
-import { getRepoData } from "../../shared/repoData.js";
-import Content from "./content.js";
+import { getRepoData } from "../../shared/repoData.ts";
+import Content from "./content.tsx";
 
 export default async function Page({
   searchParams,
