@@ -109,7 +109,15 @@ export default function Content({
           </h2>
 
           <div className="mb-6">
-            <h3 className="text-lg font-medium text-blue-600 mb-2">Cursor</h3>
+            <h3 className="text-lg font-medium text-blue-600 mb-2">
+              {" "}
+              <img
+                src="https://www.cursor.com/favicon.ico"
+                alt="Cursor"
+                className="h-6 w-6 mr-2 inline-block"
+              />{" "}
+              Cursor
+            </h3>
             <div className="bg-slate-50 p-4 rounded-md border border-slate-200">
               <p className="text-sm text-slate-700 mb-2">
                 To add this MCP to Cursor, update your{" "}
@@ -132,6 +140,12 @@ export default function Content({
 
           <div className="mb-6">
             <h3 className="text-lg font-medium text-blue-600 mb-2">
+              {" "}
+              <img
+                src="https://claude.ai/favicon.ico"
+                alt="Claude"
+                className="h-6 w-6 mr-2 inline-block"
+              />{" "}
               Claude Desktop
             </h3>
             <div className="bg-slate-50 p-4 rounded-md border border-slate-200">
@@ -159,7 +173,15 @@ export default function Content({
           </div>
 
           <div className="mb-6">
-            <h3 className="text-lg font-medium text-blue-600 mb-2">Windsurf</h3>
+            <h3 className="text-lg font-medium text-blue-600 mb-2">
+              {" "}
+              <img
+                src="https://codeium.com/favicon.ico"
+                alt="Windsurf"
+                className="h-6 w-6 mr-2 inline-block"
+              />{" "}
+              Windsurf
+            </h3>
             <div className="bg-slate-50 p-4 rounded-md border border-slate-200">
               <p className="text-sm text-slate-700 mb-2">
                 To add this MCP to Windsurf, update your{" "}
