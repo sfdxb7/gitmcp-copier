@@ -39,7 +39,7 @@ export default async function handler(
     `[${INSTANCE_ID}:${requestId}] New request: ${req.method} ${req.url}`,
   );
 
-  const adjustedUrl = new URL(req.url || "", `http://${req.headers.host}`);
+  const adjustedUrl = new URL(req.url || "", `https://${req.headers.host}`);
   // clean search params
   adjustedUrl.searchParams.forEach((value, key) => {
     if (key !== "sessionId") {

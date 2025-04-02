@@ -20,71 +20,29 @@ export default function Home() {
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 sm:py-16">
           <div className="text-center">
             <div className="flex justify-center">
-              <img src="/icon.png" alt="GitMCP Logo" className="h-auto w-80" />
+              <img
+                src="/icon_cropped.png"
+                alt="GitMCP Logo"
+                className="h-auto w-80"
+              />
             </div>
-            <p className="max-w-3xl mx-auto text-3xl text-gray-300 sm:text-3xl ">
-              Instantly create an MCP server for any GitHub project Instantly
-              create an MCP server for any GitHub project
+            <p className="max-w-3xl mx-auto text-3xl text-gray-300 sm:text-[72px] font-bold tracking-tight my-6">
+              GitMCP
+            </p>
+            <p className="max-w-3xl mx-auto text-3xl text-gray-300 sm:text-3xl font-light tracking-tight">
+              Instantly create an MCP server for any GitHub project
             </p>
           </div>
         </div>
       </div>
 
-      {/* What is GitMCP Section */}
-      <section className="py-16 bg-gray-800">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl font-bold">What is GitMCP?</h2>
-            <p className="mt-4 text-xl text-gray-300 max-w-3xl mx-auto">
-              GitMCP creates a dedicated Model Context Protocol (MCP) server for
-              any GitHub project, enabling AI assistants to understand your code
-              in context.
-            </p>
-          </div>
-
-          <div className="grid md:grid-cols-3 gap-8">
-            <div className="bg-gray-900 p-6 rounded-xl border border-gray-700">
-              <div className="w-12 h-12 bg-blue-900 rounded-lg flex items-center justify-center mb-4">
-                <Code className="h-6 w-6 text-blue-400" />
-              </div>
-              <h3 className="text-xl font-semibold mb-2">Code Understanding</h3>
-              <p className="text-gray-400">
-                AI assistants gain a deep context of your codebase structure,
-                making their responses more accurate and relevant.
-              </p>
-            </div>
-
-            <div className="bg-gray-900 p-6 rounded-xl border border-gray-700">
-              <div className="w-12 h-12 bg-emerald-900 rounded-lg flex items-center justify-center mb-4">
-                <Zap className="h-6 w-6 text-emerald-400" />
-              </div>
-              <h3 className="text-xl font-semibold mb-2">Instant Setup</h3>
-              <p className="text-gray-400">
-                No complex configuration needed. Just point to your GitHub
-                repository and connect your AI tools.
-              </p>
-            </div>
-
-            <div className="bg-gray-900 p-6 rounded-xl border border-gray-700">
-              <div className="w-12 h-12 bg-purple-900 rounded-lg flex items-center justify-center mb-4">
-                <Globe className="h-6 w-6 text-purple-400" />
-              </div>
-              <h3 className="text-xl font-semibold mb-2">Universal Access</h3>
-              <p className="text-gray-400">
-                Works seamlessly with any public GitHub repository and GitHub
-                Pages, making your documentation and code accessible to AI
-                tools.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
       {/* How It Works Section */}
-      <section className="py-16 bg-gray-900">
+      <section className="py-16 bg-gray-900 pt-2">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
-            <h2 className="text-3xl font-bold">How It Works</h2>
+            <h2 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 text-gradient">
+              How It Works
+            </h2>
             <div className="mt-6 max-w-3xl mx-auto">
               <div className="bg-gray-800 border border-gray-700 rounded-lg p-4 mb-8 flex items-center">
                 <div className="flex-1 flex items-center justify-end text-gray-300 text-lg font-mono px-4">
@@ -92,7 +50,7 @@ export default function Home() {
                 </div>
                 <div className="mx-4 text-gray-500">→</div>
                 <div className="flex-1 flex items-center text-emerald-400 text-lg font-mono px-4">
-                  gitmcp.io/username/repo
+                  <b>gitmcp.io</b>/username/repo
                 </div>
               </div>
               <div className="bg-gray-800 border border-gray-700 rounded-lg p-4 mb-8 flex items-center">
@@ -101,18 +59,14 @@ export default function Home() {
                 </div>
                 <div className="mx-4 text-gray-500">→</div>
                 <div className="flex-1 flex items-center text-emerald-400 text-lg font-mono px-4">
-                  username.github.io/repo
+                  username.<b>gitmcp.io</b>/repo
                 </div>
               </div>
-              <p className="text-xl text-gray-300 max-w-3xl mx-auto">
+              <p className="text-xl text-gray-300 max-w-3xl mx-auto font-light">
                 Simply change the domain from{" "}
-                <span className="text-gray-200 font-semibold">github.com</span>{" "}
-                or{" "}
-                <span className="text-gray-200 font-semibold">github.io</span>{" "}
-                to{" "}
-                <span className="text-emerald-400 font-semibold">
-                  gitmcp.io
-                </span>{" "}
+                <span className="text-gray-200 font-medium">github.com</span> or{" "}
+                <span className="text-gray-200 font-medium">github.io</span> to{" "}
+                <span className="text-emerald-400 font-medium">gitmcp.io</span>{" "}
                 and get instant AI context for any GitHub repository.
               </p>
             </div>
@@ -168,12 +122,72 @@ export default function Home() {
         </div>
       </section>
 
+      {/* What is GitMCP Section */}
+      <section className="py-16 bg-gray-800">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl font-bold bg-gradient-to-r from-emerald-400 to-blue-500 text-gradient">
+              What is GitMCP?
+            </h2>
+            <p className="mt-4 text-xl text-gray-300 max-w-3xl mx-auto font-light">
+              GitMCP creates a dedicated Model Context Protocol (MCP) server for
+              any GitHub project, enabling AI assistants to understand your code
+              in context.
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-8">
+            <div className="bg-gray-900 p-6 rounded-xl border border-gray-700">
+              <div className="w-12 h-12 bg-blue-900 rounded-lg flex items-center justify-center mb-4">
+                <Code className="h-6 w-6 text-blue-400" />
+              </div>
+              <h3 className="text-xl font-semibold mb-2 text-gray-100">
+                Code Understanding
+              </h3>
+              <p className="text-gray-400">
+                AI assistants gain a deep context of your codebase structure,
+                making their responses more accurate and relevant.
+              </p>
+            </div>
+
+            <div className="bg-gray-900 p-6 rounded-xl border border-gray-700">
+              <div className="w-12 h-12 bg-emerald-900 rounded-lg flex items-center justify-center mb-4">
+                <Zap className="h-6 w-6 text-emerald-400" />
+              </div>
+              <h3 className="text-xl font-semibold mb-2 text-gray-100">
+                Instant Setup
+              </h3>
+              <p className="text-gray-400">
+                No complex configuration needed. Just point to your GitHub
+                repository and connect your AI tools.
+              </p>
+            </div>
+
+            <div className="bg-gray-900 p-6 rounded-xl border border-gray-700">
+              <div className="w-12 h-12 bg-purple-900 rounded-lg flex items-center justify-center mb-4">
+                <Globe className="h-6 w-6 text-purple-400" />
+              </div>
+              <h3 className="text-xl font-semibold mb-2 text-gray-100">
+                Universal Access
+              </h3>
+              <p className="text-gray-400">
+                Works seamlessly with any public GitHub repository and GitHub
+                Pages, making your documentation and code accessible to AI
+                tools.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Compatible With Section */}
       <section className="py-16 bg-gray-800">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold">Compatible With</h2>
-            <p className="mt-4 text-xl text-gray-300 max-w-3xl mx-auto">
+            <h2 className="text-3xl font-bold bg-gradient-to-r from-purple-400 to-emerald-500 text-gradient">
+              Compatible With
+            </h2>
+            <p className="mt-4 text-xl text-gray-300 max-w-3xl mx-auto font-light">
               Works with all popular MCP-compatible AI tools
             </p>
           </div>
