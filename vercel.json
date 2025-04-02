@@ -1,11 +1,16 @@
 {
   "rewrites": [
-    { "source": "/favicon.ico", "destination": "/favicon.ico" },
-    { "source": "/icon.png", "destination": "/icon.png" },
     { "source": "/(.*\\.js)", "destination": "/$1" },
     { "source": "/(.*\\.css)", "destination": "/$1" },
-    { "source": "/(.*\\.png|.*\\.jpg|.*\\.gif|.*\\.svg)", "destination": "/$1" },
-    { "source": "/(.+)", "destination": "/api/server" }
+    {
+      "source": "/(.*\\.png|.*\\.jpg|.*\\.gif|.*\\.svg)",
+      "destination": "/$1"
+    },
+    {
+      "source": "/:path((?!_)(?!.*\\.png$).+)",
+      "destination": "/api/server"
+    },
+    { "source": "/_/", "destination": "/doc" }
   ],
   "functions": {
     "api/server.ts": {

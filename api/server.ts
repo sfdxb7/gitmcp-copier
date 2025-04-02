@@ -45,6 +45,16 @@ export default async function handler(
   );
 
   if (req.method === "GET") {
+    const isSSE = req.headers.accept?.includes("text/event-stream");
+    if (!isSSE) {
+      return res.redirect(
+        "/_/?url=" +
+          encodeURIComponent(req.url || "") +
+          "&host=" +
+          encodeURIComponent(req.headers.host || ""),
+      );
+    }
+
     try {
       console.info(
         `[${INSTANCE_ID}:${requestId}] Handling GET request for SSE connection`,
@@ -373,13 +383,20 @@ export default async function handler(
       // Check if we have the transport in this instance
       if (activeTransports[sessionId]) {
         // We can handle it directly in this instance
-        console.info(`[${INSTANCE_ID}:${requestId}] Handling POST message for session ${sessionId} directly in this instance (trace: ${messageTraceId})`);
+        console.info(
+          `[${INSTANCE_ID}:${requestId}] Handling POST message for session ${sessionId} directly in this instance (trace: ${messageTraceId})`,
+        );
         try {
           await activeTransports[sessionId].handlePostMessage(req, res);
-          console.info(`[${INSTANCE_ID}:${requestId}] Successfully handled direct message for session ${sessionId} (trace: ${messageTraceId})`);
+          console.info(
+            `[${INSTANCE_ID}:${requestId}] Successfully handled direct message for session ${sessionId} (trace: ${messageTraceId})`,
+          );
           return;
         } catch (directError) {
-          console.error(`[${INSTANCE_ID}:${requestId}] Error handling direct message for ${sessionId} (trace: ${messageTraceId}):`, directError);
+          console.error(
+            `[${INSTANCE_ID}:${requestId}] Error handling direct message for ${sessionId} (trace: ${messageTraceId}):`,
+            directError,
+          );
           // Fall through to Redis handling if direct handling fails
         }
       }

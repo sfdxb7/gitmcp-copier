@@ -11,8 +11,26 @@
     "strict": true,
     "outDir": "dist",
     "declaration": true,
-    "sourceMap": true
+    "sourceMap": true,
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "allowJs": true,
+    "noEmit": true,
+    "incremental": true,
+    "isolatedModules": true,
+    "jsx": "preserve",
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ]
   },
-  "include": ["api/**/*", "lib/**/*", "scripts/**/*"],
+  "include": [
+    "api/**/*",
+    "lib/**/*",
+    "app/**/*",
+    "scripts/**/*",
+    ".next/types/**/*.ts",
+    "shared/**/*"
+  ],
   "exclude": ["node_modules"]
 }
