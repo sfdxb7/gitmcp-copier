@@ -39,7 +39,11 @@ export default async function handler(
     `[${INSTANCE_ID}:${requestId}] New request: ${req.method} ${req.url}`,
   );
 
-  const adjustedUrl = new URL(req.url || "", `https://${req.headers.host}`);
+  const protocol = req.headers.host?.includes("localhost") ? "http" : "https";
+  const adjustedUrl = new URL(
+    req.url || "",
+    `${protocol}://${req.headers.host}`,
+  );
   // clean search params
   adjustedUrl.searchParams.forEach((value, key) => {
     if (key !== "sessionId") {
@@ -58,10 +62,15 @@ export default async function handler(
     const isSSE = req.headers.accept?.includes("text/event-stream");
     console.debug(`[${INSTANCE_ID}:${requestId}] GET request, isSSE: ${isSSE}`);
     if (!isSSE) {
+      const redirectUrlString = new URL(
+        "/_" + adjustedUrl.pathname,
+        adjustedUrl.origin,
+      ).toString();
+
       console.debug(
-        `[${INSTANCE_ID}:${requestId}] Redirecting to /_?url=${encodeURIComponent(adjustedUrlString)}`,
+        `[${INSTANCE_ID}:${requestId}] Redirecting to ${redirectUrlString}`,
       );
-      return res.redirect("/_?url=" + encodeURIComponent(adjustedUrlString));
+      return res.redirect(redirectUrlString);
     }
 
     try {
