@@ -45,6 +45,16 @@ export default async function handler(
   );
 
   if (req.method === "GET") {
+    const isSSE = req.headers.accept?.includes("text/event-stream");
+    if (!isSSE) {
+      return res.redirect(
+        "/_/?url=" +
+          encodeURIComponent(req.url || "") +
+          "&host=" +
+          encodeURIComponent(req.headers.host || ""),
+      );
+    }
+
     try {
       console.info(
         `[${INSTANCE_ID}:${requestId}] Handling GET request for SSE connection`,

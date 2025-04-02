@@ -5,6 +5,7 @@ import {
   searchDocumentation,
   storeDocumentationVectors,
 } from "../utils/vectorStore.js";
+import { getRepoData } from "../../shared/repoData.js";
 
 // Helper: fetch a file from a URL.
 async function fetchFile(url: string): Promise<string | null> {
@@ -192,35 +193,6 @@ export function registerStdioTools(mcp: McpServer) {
       });
     },
   );
-}
-
-function getRepoData(
-  requestHost: string,
-  requestUrl?: string,
-): { subdomain?: string; path?: string; owner?: string; repo?: string } {
-  // Parse the URL if provided
-  const url = requestUrl
-    ? new URL(`http://${requestHost}${requestUrl}`)
-    : new URL(`http://${requestHost}`);
-  const path = url.pathname.split("/").filter(Boolean).join("/");
-
-  // Check for subdomain pattern: {subdomain}.gitmcp.io/{path}
-  if (requestHost.includes(".gitmcp.io")) {
-    const subdomain = requestHost.split(".")[0];
-    return { subdomain, path };
-  }
-  // Check for github repo pattern: gitmcp.io/{owner}/{repo} or git-mcp.vercel.app/{owner}/{repo}
-  else if (
-    requestHost === "gitmcp.io" ||
-    requestHost === "git-mcp.vercel.app"
-  ) {
-    // Extract owner/repo from path
-    const [owner, repo] = path.split("/");
-    if (owner && repo) {
-      return { owner, repo };
-    }
-  }
-  return {};
 }
 
 /**

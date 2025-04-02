@@ -1,5 +1,13 @@
 {
-  "rewrites": [{ "source": "/(.+)", "destination": "/api/server" }],
+  "rewrites": [
+    { "source": "/favicon.ico", "destination": "/favicon.ico" },
+    { "source": "/icon.png", "destination": "/icon.png" },
+    {
+      "source": "/:path((?!_)(?!.*\\.png$).+)",
+      "destination": "/api/server"
+    },
+    { "source": "/_/", "destination": "/doc" }
+  ],
   "functions": {
     "api/server.ts": {
       "maxDuration": 60
