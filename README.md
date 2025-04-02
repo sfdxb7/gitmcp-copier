@@ -21,12 +21,12 @@ GitMCP is a free, open-source service that seamlessly transforms any GitHub proj
 ## Features
 
 - **Empower AI with GitHub Project Access**: Direct your AI assistant to GitMCP for instant access to any GitHub project's documentation, complete with semantic search capabilities to optimize token usage.
-- **Zero Setup Required**: No configurations or modifications needed—GitMCP works out of the box.
-- **Completely Free**: Enjoy all features without any cost.
+- **Zero Setup Required**: No configurations or modifications needed — GitMCP works out of the box.
+- **Completely Free**
 
 ## How It Works
 
-GitMCP serves as a bridge between your GitHub repository's documentation and AI assistants by implementing the Model Context Protocol (MCP). When an AI assistant requires information from your repository, it sends a request to GitMCP. GitMCP then retrieves the relevant content and provides semantic search capabilities, ensuring efficient and accurate information delivery.
+GitMCP serves as a bridge between your GitHub repository's documentation and AI assistants by implementing the Model Context Protocol (MCP). When an AI assistant requires information from your repository, it sends a request to GitMCP. GitMCP retrieves the relevant content and provides semantic search capabilities, ensuring efficient and accurate information delivery.
 
 ## Usage
 
@@ -35,9 +35,9 @@ To make your GitHub repository accessible to AI assistants via GitMCP, use the f
 - For GitHub repositories: `gitmcp.io/{owner}/{repo}` 
 - For GitHub Pages sites: `{owner}.gitmcp.io/{repo}`
 
-Congratulaitons! The chosen GitHub project is now fully accessible to your AI.
+Congratulations! The chosen GitHub project is now fully accessible to your AI.
 
-Replace `{owner}` with your GitHub username or organization name, and `{repo}` with your repository name. Once configured, your AI assistant can access the project's documentation seamlessly.
+Replace `{owner}` with your GitHub username or organization name and `{repo}` with your repository name. Once configured, your AI assistant can access the project's documentation seamlessly.
 
 ## Examples
 
@@ -46,7 +46,7 @@ Here are some examples of how to use GitMCP with different repositories:
 - **Example 1**: For the repository `https://github.com/octocat/Hello-World`, use: `https://gitmcp.io/octocat/Hello-World`
 - **Example 2**: For the GitHub Pages site `langchain-ai.gitmcp.io/langgraph`, use: `https://langchain-ai.gitmcp.io/langgraph`
 
-These URLs enable AI assistants to access and interact with the respective project's documentation through GitMCP.
+These URLs enable AI assistants to access and interact with the project's documentation through GitMCP.
 
 ## FAQ
 
@@ -56,7 +56,7 @@ The [Model Context Protocol](https://modelcontextprotocol.github.io/) is a stand
 
 ### Does GitMCP work with any AI assistant?
 
-Yes, GitMCP is compatible with any AI assistant that supports the Model Context Protocol, including tools like Cursor, VSCode, Claude, and others.
+Yes, GitMCP is compatible with any AI assistant supporting the Model Context Protocol, including tools like Cursor, VSCode, Claude, etc.
 
 ### Is GitMCP compatible with all GitHub projects?
 
@@ -68,7 +68,7 @@ No, GitMCP is provided as a free service to the community, with no associated co
 
 ## Contributing
 
-We welcome contributions! If you have ideas, suggestions, or improvements, feel free to open issues or submit pull requests to enhance GitMCP.
+We welcome contributions! If you have ideas, suggestions, or improvements, please feel free to open issues or submit pull requests to enhance GitMCP.
 
 ## License
 
