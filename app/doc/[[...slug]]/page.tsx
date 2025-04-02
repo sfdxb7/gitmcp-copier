@@ -5,16 +5,23 @@ import { headers } from "next/headers";
 import ContentClient from "./content.client";
 import { removeLeadingUnderscore } from "../../../shared/urlUtils";
 
-export default async function Page({}) {
+export default async function Page({
+  params,
+}: {
+  params: Promise<{ slug: string[] }>;
+}) {
   const headersList = await headers();
-  const referer = headersList.get("referer");
-  if (!referer) {
+  const { slug }: { slug: string[] } = await params;
+
+  const cleanUrl = getCleanUrl(headersList, slug);
+
+  if (!cleanUrl) {
+    console.error("No clean URL found");
     return <ContentClient />;
   }
-  const refererUrlWithoutUnderscore = removeLeadingUnderscore(referer);
-  const refererUrl = new URL(refererUrlWithoutUnderscore);
-  const host = refererUrl.host;
-  const pathname = refererUrl.pathname;
+
+  const host = cleanUrl.host;
+  const pathname = cleanUrl.pathname;
 
   const { subdomain, path, owner, repo } = getRepoData(host, pathname);
 
@@ -24,7 +31,33 @@ export default async function Page({}) {
       path={path}
       owner={owner}
       repo={repo}
-      url={refererUrl.toString()}
+      url={cleanUrl.toString()}
     />
   );
+}
+
+function getCleanUrl(headersList: Headers, slug: string[]): URL | null {
+  try {
+    const referer = headersList.get("referer");
+    if (referer) {
+      const refererUrlWithoutUnderscore = removeLeadingUnderscore(referer);
+      return new URL(refererUrlWithoutUnderscore);
+    } else {
+      const forwardedHostHeader = headersList.get("x-forwarded-host");
+      const forwardedProtocolHeader = headersList.get("x-forwarded-proto");
+      const hostHeader = headersList.get("host");
+
+      if (forwardedHostHeader && forwardedProtocolHeader) {
+        return new URL(
+          `${forwardedProtocolHeader}://${forwardedHostHeader}/${slug.join("/")}`,
+        );
+      } else {
+        const protocol = hostHeader?.includes("localhost") ? "http" : "https";
+        return new URL(`${protocol}://${hostHeader}/${slug.join("/")}`);
+      }
+    }
+  } catch (err) {
+    console.error(err);
+    return null;
+  }
 }
