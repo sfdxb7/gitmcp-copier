@@ -104,8 +104,8 @@ export function registerTools(
   requestUrl?: string,
 ) {
   // Generate a dynamic description based on the URL
-  const description = generateToolDescription(requestHost, requestUrl);
-  const toolName = generateToolName(requestHost, requestUrl);
+  const description = generateFetchToolDescription(requestHost, requestUrl);
+  const toolName = generateFetchToolName(requestHost, requestUrl);
   const searchToolName = generateSearchToolName(requestHost, requestUrl);
   const searchDescription = generateSearchToolDescription(
     requestHost,
@@ -141,7 +141,7 @@ export function registerStdioTools(mcp: McpServer) {
     async ({ requestUrl }) => {
       const requestHost = new URL(requestUrl).host;
       // Generate dynamic description after the URL is provided
-      const description = generateToolDescription(requestHost, requestUrl);
+      const description = generateFetchToolDescription(requestHost, requestUrl);
       console.log(`Using tool description: ${description}`);
       return fetchDocumentation({
         requestHost,
@@ -226,7 +226,8 @@ function generateSearchToolDescription(
     console.log("Generating search tool description for host:", requestUrl);
 
     // Default description as fallback
-    let description = "Search documentation for the current repository.";
+    let description =
+      "Semantically search within the fetched documentation for the current repository.";
 
     const { subdomain, path, owner, repo } = getRepoData(
       requestHost,
@@ -234,9 +235,9 @@ function generateSearchToolDescription(
     );
 
     if (subdomain && path) {
-      description = `Semantically search within the fetched document from the ${subdomain}/${path} GitHub Pages. It doesn't add additional information to the fetch tool.`;
+      description = `Semantically search within the fetched documentation from the ${subdomain}/${path} GitHub Pages. Useful for specific queries. Don't call if you already used fetch_documentation.`;
     } else if (owner && repo) {
-      description = `Semantically search  within the fetched document from GitHub repository: ${owner}/${repo}.  It doesn't add additional information to the fetch tool.`;
+      description = `Semantically search within the fetched documentation from GitHub repository: ${owner}/${repo}. Useful for specific queries. Don't call if you already used fetch_documentation.`;
     }
 
     return description;
@@ -252,7 +253,7 @@ function generateSearchToolDescription(
  * @param requestUrl - The full request URL (optional)
  * @returns A descriptive string for the tool
  */
-function generateToolDescription(
+function generateFetchToolDescription(
   requestHost: string,
   requestUrl?: string,
 ): string {
@@ -260,7 +261,7 @@ function generateToolDescription(
     console.log("Generating tool description for host:", requestUrl);
 
     // Default description as fallback
-    let description = "Fetch documentation file for the current repository.";
+    let description = "Fetch entire documentation for the current repository.";
 
     const { subdomain, path, owner, repo } = getRepoData(
       requestHost,
@@ -268,9 +269,9 @@ function generateToolDescription(
     );
 
     if (subdomain && path) {
-      description = `Fetch documentation from the ${subdomain}/${path} GitHub Pages.`;
+      description = `Fetch entire documentation file from the ${subdomain}/${path} GitHub Pages. Useful for general questions.`;
     } else if (owner && repo) {
-      description = `Fetch documentation from GitHub repository: ${owner}/${repo}.`;
+      description = `Fetch entire documentation file from GitHub repository: ${owner}/${repo}. Useful for general questions.`;
     }
 
     return description;
@@ -286,7 +287,10 @@ function generateToolDescription(
  * @param requestUrl - The full request URL (optional)
  * @returns A descriptive string for the tool
  */
-function generateToolName(requestHost: string, requestUrl?: string): string {
+function generateFetchToolName(
+  requestHost: string,
+  requestUrl?: string,
+): string {
   try {
     console.log("Generating tool name for host:", requestUrl);
 
