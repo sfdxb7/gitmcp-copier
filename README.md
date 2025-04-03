@@ -1,12 +1,6 @@
 # GitMCP
 
-<p align="center">
-  <picture>
-  <source srcset="https://github.com/user-attachments/assets/3afe89b9-a06c-4a39-9362-197cbd16edc1" media="(prefers-color-scheme: light)">
-  <source srcset="https://github.com/user-attachments/assets/49f70125-89a9-4508-86f6-11da0cb2b124" media="(prefers-color-scheme: dark)">
-  <img src="logo-light.png" alt="Logo" width=30% height=30%">
-</picture>
-</p>
+<img width="1148" alt="image" src="https://github.com/user-attachments/assets/e0c719d2-62f4-450e-90f3-c7dd0194f0b9" />
 
 <p align="center">
   <a href="#features">Features</a> •
