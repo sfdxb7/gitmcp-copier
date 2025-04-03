@@ -12,6 +12,11 @@
   <a href="#contributing">Contributing</a> •
   <a href="#license">License</a>
 </p>
+<div align="center">
+
+[![Twitter Follow](https://img.shields.io/twitter/follow/idosal1?style=social)](https://twitter.com/idosal1)
+[![Twitter Follow](https://img.shields.io/twitter/follow/liadyosef?style=social)](https://twitter.com/liadyosef)
+</div>
 
 ## What is GitMCP?
 
