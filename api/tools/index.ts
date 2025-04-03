@@ -10,37 +10,10 @@ export function registerTools(
   // Generate a dynamic description based on the URL
   const repoData = getRepoData(requestHost, requestUrl);
 
-  const description = generateFetchToolDescription(repoData);
-  const toolName = generateFetchToolName(repoData);
-  const searchToolName = generateSearchToolName(repoData);
-  const searchDescription = generateSearchToolDescription(repoData);
-
-  // Register fetch documentation tool
-  mcp.tool(toolName, description, {}, async () => {
-    const { fetchDocumentation } = await import("./fetchAndSearch.js");
-    return fetchDocumentation({ requestHost, requestUrl });
-  });
-
-  // Register search documentation tool
-  mcp.tool(
-    searchToolName,
-    searchDescription,
-    {
-      query: z
-        .string()
-        .describe("The search query to find relevant documentation"),
-    },
-    async ({ query }) => {
-      const { searchRepositoryDocumentation } = await import(
-        "./fetchAndSearch.js"
-      );
-      return searchRepositoryDocumentation({ requestHost, requestUrl, query });
-    },
-  );
-
-  // Special case: Register a generic documentation fetcher for the docs page
-  const isDocsPage = requestHost === "gitmcp.io" && requestUrl === "/docs";
+  const isDocsPage =
+    requestHost === "gitmcp.io" && repoData.owner === "docs" && !repoData.repo;
   if (isDocsPage) {
+    console.log("Creating tools for docs page", repoData);
     mcp.tool(
       "fetch_generic_documentation",
       "Fetch documentation for any GitHub repository by providing owner and project name",
@@ -85,7 +58,36 @@ export function registerTools(
         });
       },
     );
+    return;
   }
+
+  const description = generateFetchToolDescription(repoData);
+  const toolName = generateFetchToolName(repoData);
+  const searchToolName = generateSearchToolName(repoData);
+  const searchDescription = generateSearchToolDescription(repoData);
+
+  // Register fetch documentation tool
+  mcp.tool(toolName, description, {}, async () => {
+    const { fetchDocumentation } = await import("./fetchAndSearch.js");
+    return fetchDocumentation({ requestHost, requestUrl });
+  });
+
+  // Register search documentation tool
+  mcp.tool(
+    searchToolName,
+    searchDescription,
+    {
+      query: z
+        .string()
+        .describe("The search query to find relevant documentation"),
+    },
+    async ({ query }) => {
+      const { searchRepositoryDocumentation } = await import(
+        "./fetchAndSearch.js"
+      );
+      return searchRepositoryDocumentation({ requestHost, requestUrl, query });
+    },
+  );
 }
 
 /**
