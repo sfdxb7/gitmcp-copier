@@ -35,10 +35,7 @@ export default function RootLayout({
           property="og:description"
           content="Instantly create an MCP server for any GitHub project"
         />
-        <meta
-          property="og:image"
-          content="https://github.com/user-attachments/assets/6087badf-fd24-4a90-8a3a-c48e878bec2a"
-        />
+        <meta property="og:image" content="https://gitmcp.io/OG.png" />
 
         <meta name="twitter:card" content="summary_large_image" />
         <meta property="twitter:domain" content="gitmcp.io" />
@@ -48,10 +45,7 @@ export default function RootLayout({
           name="twitter:description"
           content="Instantly create an MCP server for any GitHub project"
         />
-        <meta
-          name="twitter:image"
-          content="https://github.com/user-attachments/assets/6087badf-fd24-4a90-8a3a-c48e878bec2a"
-        />
+        <meta name="twitter:image" content="https://gitmcp.io/OG." />
       </head>
       <body className="font-sans antialiased">{children}</body>
     </html>
