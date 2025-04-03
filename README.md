@@ -4,8 +4,8 @@
 
 <p align="center">
   <a href="#features">Features</a> •
-  <a href="#how-it-works">How It Works</a> •
   <a href="#usage">Usage</a> •
+  <a href="#how-it-works">How It Works</a> •
   <a href="#examples">Examples</a> •
   <a href="#faq">FAQ</a> •
   <a href="#privacy">Privacy</a> •
