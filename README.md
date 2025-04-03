@@ -23,10 +23,6 @@ GitMCP is a free, open-source service that seamlessly transforms any GitHub proj
 - **Zero Setup Required**: No configurations or modifications needed — GitMCP works out of the box.
 - **Completely Free**
 
-## How It Works
-
-GitMCP serves as a bridge between your GitHub repository's documentation and AI assistants by implementing the Model Context Protocol (MCP). When an AI assistant requires information from your repository, it sends a request to GitMCP. GitMCP retrieves the relevant content and provides semantic search capabilities, ensuring efficient and accurate information delivery.
-
 ## Usage
 
 To make your GitHub repository accessible to AI assistants via GitMCP, use the following URL formats:
@@ -37,6 +33,10 @@ To make your GitHub repository accessible to AI assistants via GitMCP, use the f
 Congratulations! The chosen GitHub project is now fully accessible to your AI.
 
 Replace `{owner}` with your GitHub username or organization name and `{repo}` with your repository name. Once configured, your AI assistant can access the project's documentation seamlessly.
+
+## How It Works
+
+GitMCP serves as a bridge between your GitHub repository's documentation and AI assistants by implementing the Model Context Protocol (MCP). When an AI assistant requires information from your repository, it sends a request to GitMCP. GitMCP retrieves the relevant content and provides semantic search capabilities, ensuring efficient and accurate information delivery.
 
 ## Examples
 
