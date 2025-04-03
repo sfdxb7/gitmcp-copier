@@ -141,7 +141,7 @@ export default function Home() {
       </section>
 
       {/* Video Demo Section */}
-      <section className="py-8 bg-gray-900">
+      <section id="github-pages-demo" className="py-8 bg-gray-900">
         <div className="text-center mb-4 sm:mb-4">
           <h2 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-emerald-400 to-blue-500 text-gradient">
             With Github Pages
@@ -161,7 +161,7 @@ export default function Home() {
       </section>
 
       {/* Video PW Demo Section */}
-      <section className="py-8 bg-gray-900">
+      <section id="github-repo-demo" className="py-8 bg-gray-900">
         <div className="text-center mb-4 sm:mb-4">
           <h2 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-emerald-400 to-blue-500 text-gradient">
             A Github Repo
