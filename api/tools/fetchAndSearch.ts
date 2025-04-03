@@ -173,7 +173,7 @@ export async function fetchDocumentation({
   }
 
   if (!content) {
-    content = "No documentation found. Generated fallback content.";
+    content = "No documentation found.";
     fileUsed = "generated";
   }
 
@@ -261,12 +261,7 @@ export async function searchRepositoryDocumentation({
       );
 
       // Only index and search if we got actual content
-      if (
-        content &&
-        owner &&
-        repo &&
-        content !== "No documentation found. Generated fallback content."
-      ) {
+      if (content && owner && repo && content !== "No documentation found.") {
         try {
           // Wait for vectors to be stored
           const vectorCount = await storeDocumentationVectors(
@@ -280,7 +275,7 @@ export async function searchRepositoryDocumentation({
           );
 
           // Wait a short time to ensure indexing is complete
-          await new Promise((resolve) => setTimeout(resolve, 500));
+          await new Promise((resolve) => setTimeout(resolve, 1000));
 
           // Search again after indexing
           results = await searchDocumentation(owner, repo, query);
