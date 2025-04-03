@@ -83,9 +83,6 @@ export async function getEmbeddings(text: string): Promise<number[]> {
     }
   }
 
-  // Add query-specific features in the last section of the vector
-  addTopicFeatures(view, text);
-
   // Normalize vector to unit length (important for cosine similarity)
   normalizeVector(view);
 
@@ -146,97 +143,6 @@ function extractKeywords(text: string): Array<{ term: string; score: number }> {
   // Sort by score and take top 20
   results.sort((a, b) => b.score - a.score);
   return results.slice(0, 20);
-}
-
-/**
- * Add topic features to the vector to improve matching on specific domains
- * With enhanced recognition of installation-related content
- */
-function addTopicFeatures(vector: Float32Array, text: string): void {
-  // Installation-specific patterns with strong weights to ensure installation content is prioritized
-  const installationPatterns = [
-    /how to install|installation guide|setup instructions|getting started/i,
-    /\binstall\b.*\b(it|this|package|library|framework)\b/i,
-    /\bsetup\b.*\b(guide|tutorial|instructions)\b/i,
-    /\bdocker\b.*\b(install|run|setup|compose)\b/i,
-    /\b(maven|gradle)\b.*\b(dependency|install|import)\b/i,
-    /\bnpm install\b|\byarn add\b|\bpip install\b/i,
-    /\brequirements\b|\bprerequisites\b/i,
-  ];
-
-  // Check for installation-specific content
-  let installationScore = 0;
-  for (const pattern of installationPatterns) {
-    if (pattern.test(text)) {
-      installationScore += 0.3; // Higher than regular topics
-    }
-  }
-
-  // If this is clearly installation content, significantly boost specific vector dimensions
-  if (installationScore > 0) {
-    for (let i = 950; i < 960; i++) {
-      vector[i] += installationScore;
-    }
-  }
-
-  // Regular topic patterns with normal weights
-  const topics = [
-    {
-      pattern: /\binstall|setup|deploy|configuration|configure\b/i,
-      position: 950,
-      weight: 0.7,
-    },
-    {
-      pattern: /\bdocker|container|kubernetes|k8s\b/i,
-      position: 960,
-      weight: 0.7,
-    },
-    { pattern: /\bjava|spring|hibernate|jpa\b/i, position: 970, weight: 0.6 },
-    {
-      pattern: /\bquery|sql|database|mongodb|repository\b/i,
-      position: 980,
-      weight: 0.6,
-    },
-    {
-      pattern: /\btutorial|guide|example|how to\b/i,
-      position: 990,
-      weight: 0.7,
-    },
-    { pattern: /\berror|problem|issue|debug\b/i, position: 1000, weight: 0.5 },
-    { pattern: /\bapi|rest|endpoint|url\b/i, position: 1010, weight: 0.5 },
-  ];
-
-  // Enhance specific positions based on detected topics
-  for (const topic of topics) {
-    const matches = text.match(topic.pattern);
-    if (matches) {
-      // Set several positions around the base position
-      for (let i = 0; i < 5; i++) {
-        const pos = (topic.position + i) % 1024;
-        vector[pos] += topic.weight;
-      }
-    }
-  }
-
-  // Detect code blocks which often contain installation commands
-  const codeBlockPattern = /```[a-z]*\n[\s\S]+?\n```/gi;
-  const codeBlocks = text.match(codeBlockPattern) || [];
-
-  if (codeBlocks.length > 0) {
-    // Check if any code blocks contain installation/setup commands
-    const installCommands = codeBlocks.some(
-      (block) =>
-        /\b(npm|yarn|pip|mvn|gradle|docker|apt|yum|brew)\b/i.test(block) ||
-        /\binstall\b|\bsetup\b|\bbuild\b|\bcompile\b/i.test(block),
-    );
-
-    if (installCommands) {
-      // Significantly boost installation-related dimensions
-      for (let i = 950; i < 960; i++) {
-        vector[i] += 0.8;
-      }
-    }
-  }
 }
 
 /**
@@ -850,33 +756,6 @@ function calculateKeywordMatchScore(text: string, query: string): number {
       if (lowerHeading.includes(term)) {
         score += 0.25; // Higher boost for term in heading
       }
-    }
-  }
-
-  // Intent-specific pattern matching
-  if (isInstallationQuery) {
-    // Check for installation instructions
-    if (/\binstall\b.*\b(steps|guide|instructions)\b/i.test(lowerText)) {
-      score += 0.3;
-    }
-
-    // Check for package manager commands
-    if (
-      /\bnpm install\b|\byarn add\b|\bpip install\b|\bapt-get\b/i.test(
-        lowerText,
-      )
-    ) {
-      score += 0.4;
-    }
-
-    // Check for docker setup
-    if (/\bdocker\b.*\b(install|run|compose)\b/i.test(lowerText)) {
-      score += 0.3;
-    }
-
-    // Check for build tool commands
-    if (/\bmvn\b|\bgradle\b|\bmaven\b/i.test(lowerText)) {
-      score += 0.25;
     }
   }
 
