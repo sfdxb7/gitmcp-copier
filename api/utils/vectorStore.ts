@@ -809,10 +809,13 @@ export async function searchDocumentation(
     const results = await vector.query({
       vector: queryEmbedding,
       topK: limit * 3, // Query more results than needed
+      filter: `owner = ${owner} AND repo = ${repo}`,
       includeMetadata: true,
     });
 
-    console.log(`Found ${results} results for ${owner}/${repo}`);
+    console.log(
+      `Found ${Array.isArray(results) ? results.length : 0} results for ${owner}/${repo}`,
+    );
 
     if (!results || !Array.isArray(results)) {
       console.warn(`No results found for ${owner}/${repo}`);
@@ -824,6 +827,10 @@ export async function searchDocumentation(
       const metadata = result.metadata as Dict;
       return metadata?.owner === owner && metadata?.repo === repo;
     });
+
+    console.log(
+      `Found ${filteredResults.length} matching results for ${owner}/${repo} after filtering`,
+    );
 
     // Enhanced ranking: combine vector similarity with keyword matching
     const enhancedResults = filteredResults.map((result) => {
