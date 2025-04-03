@@ -15,13 +15,13 @@
 
 ## What is GitMCP?
 
-GitMCP is a free, open-source service that seamlessly transforms any GitHub project into a [Model Context Protocol (MCP)](https://modelcontextprotocol.github.io/) endpoint, enabling AI assistants to access and understand the project's documentation effortlessly.
+GitMCP is a free, open-source service that seamlessly transforms any GitHub project into a remote [Model Context Protocol (MCP)](https://modelcontextprotocol.github.io/) endpoint, enabling AI assistants to access and understand the project's documentation effortlessly.
 
 ## Features
 
 - **Empower AI with GitHub Project Access**: Direct your AI assistant to GitMCP for instant access to any GitHub project's documentation, complete with semantic search capabilities to optimize token usage.
 - **Zero Setup Required**: No configurations or modifications needed — GitMCP works out of the box.
-- **Completely Free**
+- **Completely Free and Private**: GitMCP is free. We don't collect any personally identifiable information or queries. Plus, you can host it yourself!
 
 ## Usage
 
@@ -29,10 +29,12 @@ To make your GitHub repository accessible to AI assistants via GitMCP, use the f
 
 - For GitHub repositories: `gitmcp.io/{owner}/{repo}` 
 - For GitHub Pages sites: `{owner}.gitmcp.io/{repo}`
+- Dynamic endpoint: `gitmcp.io/docs`
 
 Congratulations! The chosen GitHub project is now fully accessible to your AI.
 
 Replace `{owner}` with your GitHub username or organization name and `{repo}` with your repository name. Once configured, your AI assistant can access the project's documentation seamlessly.
+The dynamic endpoint doesn't require a pre-defined repository. When used, your AI assistant can dynamically input any Github repository to enjoy GitMCP's features.
 
 ## How It Works
 
@@ -44,7 +46,8 @@ Here are some examples of how to use GitMCP with different repositories:
 
 - **Example 1**: For the repository `https://github.com/octocat/Hello-World`, use: `https://gitmcp.io/octocat/Hello-World`
 - **Example 2**: For the GitHub Pages site `langchain-ai.gitmcp.io/langgraph`, use: `https://langchain-ai.gitmcp.io/langgraph`
-
+- **Example 3**: Use the generic `gitmcp.com/docs` endpoint for your AI to dynamically select a repository
+- 
 These URLs enable AI assistants to access and interact with the project's documentation through GitMCP.
 
 ## FAQ
