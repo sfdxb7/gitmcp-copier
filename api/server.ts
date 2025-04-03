@@ -28,7 +28,7 @@ let activeTransports: { [sessionId: string]: SSEServerTransport } = {};
 let sessionHealthChecks: { [sessionId: string]: NodeJS.Timeout } = {};
 
 // Get max duration from vercel.json config
-const maxDuration = 59;
+const maxDuration = 800;
 
 export default async function handler(
   req: NextApiRequest,
