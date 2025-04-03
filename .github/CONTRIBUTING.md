@@ -5,6 +5,14 @@ First of all, thank you for your interest in contributing to GitMCP! We apprecia
 ## Table of Contents
 
 - [Getting Started](#getting-started)
+- [Local Development](#local-development)
+  - [Prerequisites](#prerequisites)
+  - [Setting Up Your Development Environment](#setting-up-your-development-environment)
+  - [Running the Project Locally](#running-the-project-locally)
+  - [Testing](#testing)
+  - [Code Formatting](#code-formatting)
+  - [Development Workflow](#development-workflow)
+  - [Project Structure](#project-structure)
 - [How to Contribute](#how-to-contribute)
   - [Reporting Bugs](#reporting-bugs)
   - [Suggesting Enhancements](#suggesting-enhancements)
@@ -19,6 +27,88 @@ First of all, thank you for your interest in contributing to GitMCP! We apprecia
 1. Fork the repository and clone it to your local machine.
 2. Set up the development environment.
 3. Explore the codebase, run tests, and verify that everything works as expected.
+
+## Local Development
+
+### Prerequisites
+
+Before you start working on GitMCP, make sure you have the following installed:
+
+- [Node.js](https://nodejs.org/) (version 18 or higher recommended)
+- [pnpm](https://pnpm.io/) (version 8.15.7 or higher)
+- Git
+
+### Setting Up Your Development Environment
+
+1. Clone your forked repository:
+   ```bash
+   git clone https://github.com/your-username/git-mcp.git
+   cd git-mcp
+   ```
+
+2. Install dependencies:
+   ```bash
+   pnpm install
+   ```
+
+3. Set up environment variables:
+   - Create a `.env.local` file in the root directory
+   - Add any necessary environment variables (ask project maintainers if you need access to specific API keys)
+
+### Running the Project Locally
+
+To start the development server:
+
+```bash
+pnpm vercel dev
+```
+
+This will start the Next.js development server, typically at http://localhost:3000.
+
+For running with the MCP Inspector (useful for debugging MCP endpoints):
+
+```bash
+pnpm run inspector
+```
+
+### Testing
+
+To run tests:
+
+```bash
+pnpm test
+```
+
+GitMCP uses Vitest as the testing framework. When adding new features, please include appropriate tests.
+
+### Code Formatting
+
+GitMCP uses Prettier for code formatting and lint-staged to ensure code is properly formatted before committing. Pre-commit hooks are set up with Husky to run these checks automatically.
+
+To manually format your code:
+
+```bash
+pnpm prettier --write .
+```
+
+### Development Workflow
+
+1. Create a new branch for your feature/bugfix
+2. Make your changes
+3. Add tests for your changes when applicable
+4. Run the tests to ensure they pass
+5. Commit your changes following the commit message guidelines
+6. Push your branch and open a pull request
+
+### Project Structure
+
+- `api/`: Contains the server-side code and MCP implementation
+  - `tools/`: MCP tools implementation
+  - `utils/`: Utility functions for the API
+- `app/`: Next.js app directory with React components
+- `pages/`: Additional Next.js pages
+- `public/`: Static assets
+- `shared/`: Shared utilities used across the codebase
 
 ## How to Contribute
 
