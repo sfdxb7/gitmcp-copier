@@ -375,6 +375,7 @@ async function fetchDocumentation({
 
     // If no cached path or cached path failed, try static paths
     if (!content) {
+      console.log(`No cached path for ${owner}/${repo}, trying static paths`);
       const possibleLocations = [
         "docs/docs/llms.txt", // Current default
         "llms.txt", // Root directory
@@ -425,6 +426,9 @@ async function fetchDocumentation({
 
       // Fallback to GitHub Search API if static paths don't work for llms.txt
       if (!content) {
+        console.log(
+          `llms.txt not found in static paths, trying GitHub Search API`,
+        );
         content = await searchGitHubRepo(owner, repo, "llms.txt");
         if (content) {
           fileUsed = "llms.txt (found via GitHub Search API)";
@@ -434,6 +438,7 @@ async function fetchDocumentation({
 
     // Fallback to README.md if llms.txt not found in any location
     if (!content) {
+      console.log(`llms.txt not found, trying README.md`);
       // Only use static approach for README, no search API
       // Try main branch first
       content = await fetchFileFromGitHub(owner, repo, "main", "README.md");
@@ -444,6 +449,10 @@ async function fetchDocumentation({
         content = await fetchFileFromGitHub(owner, repo, "master", "README.md");
         fileUsed = "readme.md (master branch)";
       }
+    }
+
+    if (!content) {
+      console.error(`Failed to find documentation for ${owner}/${repo}`);
     }
 
     // Store documentation in vector database for later search
