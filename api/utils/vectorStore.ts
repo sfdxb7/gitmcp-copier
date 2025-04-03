@@ -809,7 +809,7 @@ export async function searchDocumentation(
     const results = await vector.query({
       vector: queryEmbedding,
       topK: limit, // Query more results than needed
-      filter: `owner = ${owner} AND repo = ${repo}`,
+      filter: `owner = "${owner}" AND repo = "${repo}"`,
       includeMetadata: true,
     });
 
