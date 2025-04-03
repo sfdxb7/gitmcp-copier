@@ -335,11 +335,18 @@ export function chunkReadme(text: string, fileName?: string): string[] {
   // Check if this is a special case file (like llms.txt) that needs list-item level chunking
   const isSpecialListFile = fileName?.toLowerCase().includes("llms.txt");
 
-  const chunks: string[] = [];
+  // Track headers and their content
+  interface HeaderSection {
+    level: number;
+    title: string;
+    content: string;
+    lineIndex: number;
+  }
 
-  // Track headers at different levels for context preservation
-  let headerStack: string[] = [];
-  let currentChunk = "";
+  const sections: HeaderSection[] = [];
+  let currentSection: HeaderSection | null = null;
+  let mainHeaderContent = "";
+  let mainTitle = "";
 
   // Helper function to detect badge lines (markdown image links with badge URLs)
   function isBadgeLine(line: string): boolean {
@@ -348,25 +355,58 @@ export function chunkReadme(text: string, fileName?: string): string[] {
       /!\[.*\]\(.*badge.*\)/.test(line) ||
       /!\[.*\]\(.*shield\.io.*\)/.test(line) ||
       (/\[!\[.*\]\(.*\)\]\(.*\)/.test(line) &&
+        (line.includes("badge") || line.includes("shield"))) ||
+      /img\.shields\.io/.test(line) ||
+      (line.includes("<img") &&
         (line.includes("badge") || line.includes("shield")))
     );
   }
 
-  // Helper function to get the current header context
-  function getCurrentHeaderContext(): string {
-    return headerStack.join("\n\n");
+  // First pass: Extract headers and their content
+  const lines = text.split("\n");
+  let inBadgeSection = false;
+  let badgeSectionEndLine = 0;
+  let skipToLine = -1;
+
+  // Detect the initial badge/logo section which often appears at the start of READMEs
+  for (let i = 0; i < Math.min(20, lines.length); i++) {
+    if (
+      (lines[i].includes('<p align="center">') ||
+        lines[i].includes('align="center"') ||
+        lines[i].includes('<div align="center">')) &&
+      i + 5 < lines.length
+    ) {
+      // Check if next few lines contain images, badges, or links
+      let hasImageOrBadge = false;
+      for (let j = i; j < Math.min(i + 15, lines.length); j++) {
+        if (
+          lines[j].includes("<img") ||
+          lines[j].includes("![") ||
+          isBadgeLine(lines[j]) ||
+          (lines[j].includes("<a href=") && lines[j].includes("</a>"))
+        ) {
+          hasImageOrBadge = true;
+          badgeSectionEndLine = Math.max(badgeSectionEndLine, j + 1);
+        }
+      }
+
+      if (hasImageOrBadge) {
+        inBadgeSection = true;
+      }
+    }
   }
 
-  // Split content by headings, lists, and code blocks while preserving structure
-  const lines = text.split("\n");
-  let i = 0;
+  // Process each line
+  for (let i = 0; i < lines.length; i++) {
+    // Skip if we're still processing a multi-line element
+    if (i < skipToLine) {
+      continue;
+    }
 
-  while (i < lines.length) {
     const line = lines[i];
 
-    // Skip badge lines completely - don't include them in any chunk
-    if (isBadgeLine(line)) {
-      i++;
+    // Skip initial badge/logo section
+    if (i <= badgeSectionEndLine && inBadgeSection) {
       continue;
     }
 
@@ -374,189 +414,143 @@ export function chunkReadme(text: string, fileName?: string): string[] {
     const headerMatch = line.match(/^(#{1,6})\s+(.+)/);
 
     if (headerMatch) {
-      // This is a heading, which means it's a section boundary
-      const headerLevel = headerMatch[1].length;
-      const headerText = headerMatch[2];
+      // This is a heading - create a new section
+      const level = headerMatch[1].length;
+      const title = headerMatch[2].trim();
 
-      // Before processing the new header, add any existing content as a chunk
-      if (currentChunk.trim().length > 0) {
-        chunks.push(currentChunk.trim());
+      // If we had a previous section, finalize it
+      if (currentSection) {
+        sections.push(currentSection);
+      } else if (mainHeaderContent && !currentSection) {
+        // Save content that appeared before any headers as the main description
+        mainTitle = title;
+        mainHeaderContent = mainHeaderContent.trim();
       }
 
-      // Update header context based on level
-      headerStack = headerStack.slice(0, headerLevel - 1);
-      headerStack.push(`${"#".repeat(headerLevel)} ${headerText}`);
+      // Start a new section
+      currentSection = {
+        level,
+        title,
+        content: `${"#".repeat(level)} ${title}`,
+        lineIndex: i,
+      };
+    } else if (currentSection) {
+      // We're in a section, add content
 
-      // Start a new chunk with header context
-      currentChunk = getCurrentHeaderContext() + "\n\n";
-
-      i++;
-    } else {
-      // This is regular content or a special element (list, code block, etc.)
-
-      // Handle HTML image/link tags that might be badges
-      if (
-        line.includes("<img") &&
-        (line.includes("badge") || line.includes("shield"))
-      ) {
-        i++;
+      // Skip badge lines
+      if (isBadgeLine(line)) {
         continue;
       }
 
-      // Skip consecutive badge or shield lines that might be in a group
-      if (
-        line.includes("](") &&
-        i + 1 < lines.length &&
-        isBadgeLine(lines[i + 1])
-      ) {
-        let allBadges = true;
-        // Look ahead to see if this is part of a badge group
-        for (let j = i; j < Math.min(i + 5, lines.length); j++) {
-          if (!isBadgeLine(lines[j]) && lines[j].trim().length > 0) {
-            allBadges = false;
-            break;
-          }
-        }
-
-        if (allBadges) {
-          i++;
-          continue;
-        }
-      }
-
-      // Group together consecutive paragraphs that belong together
-      if (line.trim() === "") {
-        // Empty line - add a paragraph break
-        currentChunk += "\n\n";
-        i++;
-        continue;
-      }
-
-      // Check for the start of a code block
+      // Process code blocks as a unit
       if (line.trim().startsWith("```")) {
-        // Include the entire code block in the current chunk
-        currentChunk += line + "\n";
-        i++;
+        let codeBlock = line + "\n";
+        let j = i + 1;
 
-        // Keep adding lines until we find the end of the code block
-        while (i < lines.length) {
-          currentChunk += lines[i] + "\n";
-          if (lines[i].trim() === "```") {
-            break;
-          }
-          i++;
+        // Collect the entire code block
+        while (j < lines.length && !lines[j].trim().startsWith("```")) {
+          codeBlock += lines[j] + "\n";
+          j++;
         }
-        i++;
+
+        if (j < lines.length) {
+          // Add closing delimiter
+          codeBlock += lines[j] + "\n";
+        }
+
+        currentSection.content += "\n\n" + codeBlock;
+        skipToLine = j + 1;
         continue;
       }
 
-      // Check for list items
-      if (line.trim().match(/^[*\-+] |^\d+\. /)) {
-        // Special handling for llms.txt files - create separate chunks for each list item
-        if (isSpecialListFile) {
-          // If we have content already, save it as a chunk before processing list item
-          if (
-            currentChunk.trim().length > 0 &&
-            !currentChunk.trim().endsWith(getCurrentHeaderContext().trim())
-          ) {
-            chunks.push(currentChunk.trim());
-          }
-
-          // Start a new chunk with header context for this list item
-          let listItemChunk = getCurrentHeaderContext() + "\n\n" + line;
-          i++;
-
-          // Add indented continuation lines for this specific list item
-          while (i < lines.length) {
-            const nextLine = lines[i].trim();
-
-            // Skip badge lines
-            if (isBadgeLine(nextLine)) {
-              i++;
-              continue;
-            }
-
-            // If this is a continuation line (indented or empty)
-            if (nextLine === "" || nextLine.startsWith("  ")) {
-              // Only add non-empty continuation lines
-              if (nextLine !== "") {
-                listItemChunk += "\n" + lines[i];
-              }
-              i++;
-            } else if (!nextLine.match(/^[*\-+] |^\d+\. /)) {
-              // If not a new list item and not indented, it's likely paragraph text
-              // that belongs to this list item
-              listItemChunk += "\n" + lines[i];
-              i++;
-            } else {
-              // This is a new list item, stop here
-              break;
-            }
-          }
-
-          // Add the list item as its own chunk
-          chunks.push(listItemChunk.trim());
-
-          // Reset current chunk to header context for next content
-          currentChunk = getCurrentHeaderContext() + "\n\n";
-          continue;
+      // Add the line to current section with proper spacing
+      if (line.trim() !== "") {
+        if (
+          currentSection.content ===
+          `${"#".repeat(currentSection.level)} ${currentSection.title}`
+        ) {
+          currentSection.content += "\n\n" + line;
         } else {
-          // For regular README files, keep list items with their section
-          // Simply add the list item to the current chunk and collect the entire list
-          currentChunk += line + "\n";
-          i++;
-
-          // Capture the entire list until we reach a non-list item
-          while (i < lines.length) {
-            const nextLine = lines[i].trim();
-
-            // Skip badge lines
-            if (isBadgeLine(nextLine)) {
-              i++;
-              continue;
-            }
-
-            // If this is still part of the list (empty line, indented, or new list item)
-            if (
-              nextLine === "" ||
-              nextLine.startsWith("  ") ||
-              nextLine.match(/^[*\-+] |^\d+\. /)
-            ) {
-              // Add to the current chunk
-              currentChunk += lines[i] + "\n";
-              i++;
-            } else {
-              // This is no longer part of the list, stop here
-              break;
-            }
-          }
-          continue;
+          currentSection.content += "\n" + line;
         }
+      } else if (
+        currentSection.content !==
+        `${"#".repeat(currentSection.level)} ${currentSection.title}`
+      ) {
+        // Add empty line if not right after the header
+        currentSection.content += "\n";
       }
-
-      // Regular paragraph content
-      currentChunk += line + "\n";
-      i++;
-
-      // Detect chunks that are getting too large (over 2000 chars)
-      if (currentChunk.length > 2000 && currentChunk.trim().endsWith(".")) {
-        chunks.push(currentChunk.trim());
-
-        // Start a new chunk with the current header context
-        currentChunk = getCurrentHeaderContext() + "\n\n";
+    } else {
+      // Content before first header - collect as main description
+      if (line.trim() !== "" && !isBadgeLine(line)) {
+        if (mainHeaderContent) {
+          mainHeaderContent += "\n" + line;
+        } else {
+          mainHeaderContent += line;
+        }
       }
     }
   }
 
-  // Add any remaining content
-  if (
-    currentChunk.trim().length > 0 &&
-    !currentChunk.trim().endsWith(getCurrentHeaderContext().trim())
-  ) {
+  // Add the last section if there is one
+  if (currentSection) {
+    sections.push(currentSection);
+  }
+
+  // Group sections by their hierarchy
+  const chunks: string[] = [];
+
+  // Add the main content as first chunk if it exists
+  if (mainHeaderContent) {
+    if (mainTitle) {
+      chunks.push(`# ${mainTitle}\n\n${mainHeaderContent}`);
+    } else {
+      chunks.push(mainHeaderContent);
+    }
+  }
+
+  // Process sections into chunks
+  let currentChunk = "";
+  let currentLevel = 0;
+  let currentTitle = "";
+
+  for (const section of sections) {
+    // New top-level section always starts a new chunk
+    if (section.level === 1 || section.level === 2) {
+      if (currentChunk) {
+        chunks.push(currentChunk.trim());
+      }
+      currentChunk = section.content;
+      currentLevel = section.level;
+      currentTitle = section.title;
+      continue;
+    }
+
+    // If this is a subsection of the current section, add it to the current chunk
+    if (section.level > currentLevel) {
+      currentChunk += "\n\n" + section.content;
+    } else {
+      // Same level section or higher than current section (but not level 1-2)
+      // Check if current chunk is getting too large
+      if (currentChunk.length > 2000) {
+        chunks.push(currentChunk.trim());
+        currentChunk = section.content;
+        currentLevel = section.level;
+        currentTitle = section.title;
+      } else {
+        // Add to current chunk with proper separation
+        currentChunk += "\n\n" + section.content;
+      }
+    }
+  }
+
+  // Add the final chunk
+  if (currentChunk) {
     chunks.push(currentChunk.trim());
   }
 
-  return chunks;
+  // Filter out chunks that are too small or empty
+  return chunks.filter((chunk) => chunk.trim().length > 50);
 }
 
 /**
