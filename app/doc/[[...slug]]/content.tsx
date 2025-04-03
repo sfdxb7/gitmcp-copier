@@ -1,6 +1,6 @@
 "use client";
 import React, { useState } from "react";
-import { ClipboardCopy, Check } from "lucide-react";
+import { ClipboardCopy, Check, Github } from "lucide-react";
 import { bt } from "@upstash/redis/zmscore-BdNsMd17";
 
 export default function Content({
@@ -70,7 +70,19 @@ export default function Content({
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 flex flex-col items-center p-8 px-4 sm:px-8">
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 flex flex-col items-center p-8 px-4 sm:px-8 relative">
+      {/* GitHub Link */}
+      <div className="absolute top-4 right-4 sm:top-6 sm:right-6 z-10">
+        <a
+          href="https://github.com/idosal/git-mcp"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-2 bg-white hover:bg-gray-50 text-gray-800 px-3 py-2 rounded-md transition-colors duration-200 border border-gray-200 shadow-sm z-10"
+        >
+          <Github className="h-5 w-5" />
+          <span className="hidden sm:inline">GitHub</span>
+        </a>
+      </div>
       <div className="max-w-3xl w-full">
         <div className="text-center mb-8">
           <h1 className="text-3xl sm:text-4xl font-bold mb-2 relative inline-block">
