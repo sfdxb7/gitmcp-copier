@@ -1,4 +1,4 @@
-import { getRepoData } from "../../shared/repoData";
+import { getRepoData } from "../../shared/repoData.js";
 import { getCachedFilePath, cacheFilePath } from "../utils/upstash.js";
 import {
   searchDocumentation,
