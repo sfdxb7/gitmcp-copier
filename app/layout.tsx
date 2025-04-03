@@ -37,7 +37,7 @@ export default function RootLayout({
         />
         <meta
           property="og:image"
-          content="https://opengraph.b-cdn.net/production/images/867f1ab4-33c9-4f5a-b998-dc349082535e.png?token=T6nnE4yCwb_bj5odjb8ZXuHUEleLddj1vOVDtQoUHas&height=598&width=1200&expires=33279701815"
+          content="https://github.com/user-attachments/assets/6087badf-fd24-4a90-8a3a-c48e878bec2a"
         />
 
         <meta name="twitter:card" content="summary_large_image" />
@@ -50,7 +50,7 @@ export default function RootLayout({
         />
         <meta
           name="twitter:image"
-          content="https://opengraph.b-cdn.net/production/images/867f1ab4-33c9-4f5a-b998-dc349082535e.png?token=T6nnE4yCwb_bj5odjb8ZXuHUEleLddj1vOVDtQoUHas&height=598&width=1200&expires=33279701815"
+          content="https://github.com/user-attachments/assets/6087badf-fd24-4a90-8a3a-c48e878bec2a"
         />
       </head>
       <body className="font-sans antialiased">{children}</body>
