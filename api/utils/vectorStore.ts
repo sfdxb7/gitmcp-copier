@@ -808,7 +808,7 @@ export async function searchDocumentation(
     // Query vectors without using filter prefix
     const results = await vector.query({
       vector: queryEmbedding,
-      topK: limit * 3, // Query more results than needed
+      topK: limit, // Query more results than needed
       filter: `owner = ${owner} AND repo = ${repo}`,
       includeMetadata: true,
     });
