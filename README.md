@@ -86,3 +86,7 @@ We welcome contributions! Please take a look at our [contribution](https://githu
 ## License
 
 This project is licensed under the [MIT License](LICENSE).
+
+## Disclaimer
+
+GitMCP is provided "as is" without warranty of any kind. While we strive to ensure the reliability and security of our service, we are not responsible for any damages or issues that may arise from its use. GitHub repositories accessed through GitMCP are subject to their respective owners' terms and conditions. GitMCP is not affiliated with GitHub, Inc.
