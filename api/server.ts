@@ -501,8 +501,8 @@ export default async function handler(
         res: NextApiResponse,
         onResponse: (cleanup: () => Promise<void>) => void,
       ) {
-        // First create the unsubscribe function so it's available for the callbacks
-        const unsubscribePromise = subscribeToResponse(
+        // First create and await the unsubscribe function BEFORE using it in callbacks
+        const unsubscribe = await subscribeToResponse(
           sessionId,
           requestId,
           async (response) => {
@@ -524,13 +524,9 @@ export default async function handler(
               );
             }
 
-            // Call the onResponse callback which will handle cleanup
             onResponse(unsubscribe);
           },
         );
-
-        // Store the unsubscribe function
-        const unsubscribe = await unsubscribePromise;
 
         return {
           unsubscribe,
@@ -580,7 +576,7 @@ export default async function handler(
         // Save for later use in timeout and close handlers
         unsubscribeFunction = unsubscribe;
 
-        // Add a timeout for the response - using 5 seconds for all requests
+        // ONLY set up the timeout AFTER we have the unsubscribe function initialized
         responseTimeout = setTimeout(async () => {
           if (hasResponded) {
             console.debug(
