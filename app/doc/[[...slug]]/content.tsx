@@ -108,56 +108,196 @@ export default function Content({
             Integration Examples
           </h2>
 
+          {/* Tabs for different integrations */}
           <div className="mb-6">
-            <h3 className="text-lg font-medium text-blue-600 mb-2">
-              {" "}
-              <img
-                src="https://www.cursor.com/favicon.ico"
-                alt="Cursor"
-                className="h-6 w-6 mr-2 inline-block"
-              />{" "}
-              Cursor
-            </h3>
-            <div className="bg-slate-50 p-4 rounded-md border border-slate-200">
-              <p className="text-sm text-slate-700 mb-2">
-                To add this MCP to Cursor, update your{" "}
-                <code className="bg-slate-200 px-1.5 py-0.5 rounded text-blue-700">
-                  ~/.cursor/mcp.json
-                </code>
-                :
-              </p>
-              <pre className="bg-slate-800 text-slate-100 p-3 rounded-md text-sm overflow-x-auto">
-                {`{
+            <div className="flex border-b border-slate-200 mb-4">
+              {["Cursor", "Claude Desktop", "Windsurf"].map((tab, index) => (
+                <button
+                  key={tab}
+                  className={`py-2 px-4 font-medium text-sm focus:outline-none cursor-pointer ${
+                    index === 0
+                      ? "text-blue-600 border-b-2 border-blue-600"
+                      : "text-slate-600 hover:text-blue-600"
+                  }`}
+                  onClick={(e) => {
+                    // Clear all active tabs
+                    e.currentTarget.parentElement
+                      ?.querySelectorAll("button")
+                      .forEach((btn) => {
+                        btn.classList.remove(
+                          "text-blue-600",
+                          "border-b-2",
+                          "border-blue-600",
+                        );
+                        btn.classList.add(
+                          "text-slate-600",
+                          "hover:text-blue-600",
+                        );
+                      });
+
+                    // Set this tab as active
+                    e.currentTarget.classList.remove(
+                      "text-slate-600",
+                      "hover:text-blue-600",
+                    );
+                    e.currentTarget.classList.add(
+                      "text-blue-600",
+                      "border-b-2",
+                      "border-blue-600",
+                    );
+
+                    // Hide all tab contents
+                    document
+                      .querySelectorAll(".tab-content")
+                      .forEach((content) => {
+                        content.classList.add("hidden");
+                      });
+
+                    // Show the selected tab content
+                    document
+                      .getElementById(
+                        `tab-${tab.replace(/\s+/g, "-").toLowerCase()}`,
+                      )
+                      ?.classList.remove("hidden");
+                  }}
+                >
+                  <div className="flex items-center">
+                    <img
+                      src={`https://${tab === "Cursor" ? "www.cursor.com" : tab === "Claude Desktop" ? "claude.ai" : "codeium.com"}/favicon.ico`}
+                      alt={tab}
+                      className="h-4 w-4 mr-2 inline-block"
+                    />
+                    {tab}
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            {/* Tab content */}
+            <div id="tab-cursor" className="tab-content">
+              <div className="bg-slate-50 p-4 rounded-md border border-slate-200">
+                <p className="text-sm text-slate-700 mb-2">
+                  To add this MCP to Cursor, update your{" "}
+                  <code className="bg-slate-200 px-1.5 py-0.5 rounded text-blue-700">
+                    ~/.cursor/mcp.json
+                  </code>
+                  :
+                </p>
+                <pre className="bg-slate-800 text-slate-100 p-3 rounded-md text-sm overflow-x-auto relative">
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(`{
+  "mcpServers": {
+    "${serverName}": {
+      "url": "${url}"
+    }
+  }
+}`);
+                      const copyBtn =
+                        document.querySelector("#cursor-copy-btn");
+                      if (copyBtn) {
+                        copyBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-emerald-500"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+                        setTimeout(() => {
+                          copyBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`;
+                        }, 2000);
+                      }
+                    }}
+                    id="cursor-copy-btn"
+                    className="absolute top-2 right-2 p-1 rounded-md hover:bg-slate-700 transition-colors focus:outline-none"
+                    aria-label="Copy code"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <rect
+                        x="9"
+                        y="9"
+                        width="13"
+                        height="13"
+                        rx="2"
+                        ry="2"
+                      ></rect>
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                    </svg>
+                  </button>
+                  {`{
   "mcpServers": {
     "${serverName}": {
       "url": "${url}"
     }
   }
 }`}
-              </pre>
+                </pre>
+              </div>
             </div>
-          </div>
 
-          <div className="mb-6">
-            <h3 className="text-lg font-medium text-blue-600 mb-2">
-              {" "}
-              <img
-                src="https://claude.ai/favicon.ico"
-                alt="Claude"
-                className="h-6 w-6 mr-2 inline-block"
-              />{" "}
-              Claude Desktop
-            </h3>
-            <div className="bg-slate-50 p-4 rounded-md border border-slate-200">
-              <p className="text-sm text-slate-700 mb-2">
-                To add this MCP to Claude Desktop, update your{" "}
-                <code className="bg-slate-200 px-1.5 py-0.5 rounded text-blue-700">
-                  claude_desktop_config.json
-                </code>
-                :
-              </p>
-              <pre className="bg-slate-800 text-slate-100 p-3 rounded-md text-sm overflow-x-auto">
-                {`{
+            <div id="tab-claude-desktop" className="tab-content hidden">
+              <div className="bg-slate-50 p-4 rounded-md border border-slate-200">
+                <p className="text-sm text-slate-700 mb-2">
+                  To add this MCP to Claude Desktop, update your{" "}
+                  <code className="bg-slate-200 px-1.5 py-0.5 rounded text-blue-700">
+                    claude_desktop_config.json
+                  </code>
+                  :
+                </p>
+                <pre className="bg-slate-800 text-slate-100 p-3 rounded-md text-sm overflow-x-auto relative">
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(`{
+  "mcpServers": {
+    "${serverName}": {
+      "command": "npx",
+      "args": [
+        "mcp-remote",
+        "${url}"
+      ]
+    }
+  }
+}`);
+                      const copyBtn =
+                        document.querySelector("#claude-copy-btn");
+                      if (copyBtn) {
+                        copyBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-emerald-500"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+                        setTimeout(() => {
+                          copyBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`;
+                        }, 2000);
+                      }
+                    }}
+                    id="claude-copy-btn"
+                    className="absolute top-2 right-2 p-1 rounded-md hover:bg-slate-700 transition-colors focus:outline-none"
+                    aria-label="Copy code"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <rect
+                        x="9"
+                        y="9"
+                        width="13"
+                        height="13"
+                        rx="2"
+                        ry="2"
+                      ></rect>
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                    </svg>
+                  </button>
+                  {`{
   "mcpServers": {
     "${serverName}": {
       "command": "npx",
@@ -168,37 +308,73 @@ export default function Content({
     }
   }
 }`}
-              </pre>
+                </pre>
+              </div>
             </div>
-          </div>
 
-          <div className="mb-6">
-            <h3 className="text-lg font-medium text-blue-600 mb-2">
-              {" "}
-              <img
-                src="https://codeium.com/favicon.ico"
-                alt="Windsurf"
-                className="h-6 w-6 mr-2 inline-block"
-              />{" "}
-              Windsurf
-            </h3>
-            <div className="bg-slate-50 p-4 rounded-md border border-slate-200">
-              <p className="text-sm text-slate-700 mb-2">
-                To add this MCP to Windsurf, update your{" "}
-                <code className="bg-slate-200 px-1.5 py-0.5 rounded text-blue-700">
-                  ~/.codeium/windsurf/mcp_config.json
-                </code>
-                :
-              </p>
-              <pre className="bg-slate-800 text-slate-100 p-3 rounded-md text-sm overflow-x-auto">
-                {`{
+            <div id="tab-windsurf" className="tab-content hidden">
+              <div className="bg-slate-50 p-4 rounded-md border border-slate-200">
+                <p className="text-sm text-slate-700 mb-2">
+                  To add this MCP to Windsurf, update your{" "}
+                  <code className="bg-slate-200 px-1.5 py-0.5 rounded text-blue-700">
+                    ~/.codeium/windsurf/mcp_config.json
+                  </code>
+                  :
+                </p>
+                <pre className="bg-slate-800 text-slate-100 p-3 rounded-md text-sm overflow-x-auto relative">
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(`{
+  "mcpServers": {
+    "${serverName}": {
+      "serverUrl": "${url}"
+    }
+  }
+}`);
+                      const copyBtn =
+                        document.querySelector("#windsurf-copy-btn");
+                      if (copyBtn) {
+                        copyBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-emerald-500"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+                        setTimeout(() => {
+                          copyBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`;
+                        }, 2000);
+                      }
+                    }}
+                    id="windsurf-copy-btn"
+                    className="absolute top-2 right-2 p-1 rounded-md hover:bg-slate-700 transition-colors focus:outline-none"
+                    aria-label="Copy code"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <rect
+                        x="9"
+                        y="9"
+                        width="13"
+                        height="13"
+                        rx="2"
+                        ry="2"
+                      ></rect>
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                    </svg>
+                  </button>
+                  {`{
   "mcpServers": {
     "${serverName}": {
       "serverUrl": "${url}"
     }
   }
 }`}
-              </pre>
+                </pre>
+              </div>
             </div>
           </div>
         </div>
