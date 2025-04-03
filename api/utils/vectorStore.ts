@@ -812,6 +812,10 @@ export async function searchDocumentation(
       includeMetadata: true,
     });
 
+    console.warn(
+      `Found ${JSON.stringify(results)} results for ${owner}/${repo}`,
+    );
+
     if (!results || !Array.isArray(results)) {
       return [];
     }
