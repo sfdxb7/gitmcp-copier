@@ -41,6 +41,8 @@ Congratulations! The chosen GitHub project is now fully accessible to your AI.
 Replace `{owner}` with your GitHub username or organization name and `{repo}` with your repository name. Once configured, your AI assistant can access the project's documentation seamlessly.
 The dynamic endpoint doesn't require a pre-defined repository. When used, your AI assistant can dynamically input any Github repository to enjoy GitMCP's features.
 
+<video src="https://github.com/user-attachments/assets/2c3afaf9-6c08-436e-9efd-db8710554430"></video>
+
 ## How It Works
 
 GitMCP serves as a bridge between your GitHub repository's documentation and AI assistants by implementing the Model Context Protocol (MCP). When an AI assistant requires information from your repository, it sends a request to GitMCP. GitMCP retrieves the relevant content and provides semantic search capabilities, ensuring efficient and accurate information delivery.
