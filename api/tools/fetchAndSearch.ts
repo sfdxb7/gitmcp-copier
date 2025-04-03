@@ -233,7 +233,7 @@ export async function searchRepositoryDocumentation({
     repo = path || "docs";
   }
 
-  console.log(`Searching ${owner}/${repo} for "${query}"`);
+  console.log(`Searching ${owner}/${repo}`);
 
   // First, check if this is the initial search for this repo/owner or if reindexing is forced
   let isFirstSearch = false;
@@ -247,7 +247,7 @@ export async function searchRepositoryDocumentation({
       console.log(
         `${
           forceReindex ? "Force reindexing" : "No search results found"
-        } for ${query} in ${owner}/${repo}, fetching documentation first`,
+        } for in ${owner}/${repo}, fetching documentation first`,
       );
       isFirstSearch = true;
 
