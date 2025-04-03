@@ -50,6 +50,22 @@ export default function Content({
     setTimeout(() => setCopied(false), 2000);
   };
 
+  // Function to get favicon URL for different tools
+  const getToolFaviconUrl = (toolName: string): string => {
+    switch (toolName) {
+      case "Cursor":
+        return "https://www.cursor.com/favicon.ico";
+      case "Claude Desktop":
+        return "https://claude.ai/favicon.ico";
+      case "Windsurf":
+        return "https://codeium.com/favicon.ico";
+      case "Insiders":
+        return "https://code.visualstudio.com/assets/favicon.ico";
+      default:
+        return "https://codeium.com/favicon.ico";
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 flex flex-col items-center p-8 px-4 sm:px-8">
       <div className="max-w-3xl w-full">
@@ -115,66 +131,68 @@ export default function Content({
           {/* Tabs for different integrations */}
           <div className="mb-6">
             <div className="flex flex-wrap border-b border-slate-200 mb-4">
-              {["Cursor", "Claude Desktop", "Windsurf"].map((tab, index) => (
-                <button
-                  key={tab}
-                  className={`py-2 px-3 sm:px-4 font-medium text-xs sm:text-sm focus:outline-none cursor-pointer ${
-                    index === 0
-                      ? "text-blue-600 border-b-2 border-blue-600"
-                      : "text-slate-600 hover:text-blue-600"
-                  }`}
-                  onClick={(e) => {
-                    // Clear all active tabs
-                    e.currentTarget.parentElement
-                      ?.querySelectorAll("button")
-                      .forEach((btn) => {
-                        btn.classList.remove(
-                          "text-blue-600",
-                          "border-b-2",
-                          "border-blue-600",
-                        );
-                        btn.classList.add(
-                          "text-slate-600",
-                          "hover:text-blue-600",
-                        );
-                      });
+              {["Cursor", "Claude Desktop", "Windsurf", "Insiders"].map(
+                (tab, index) => (
+                  <button
+                    key={tab}
+                    className={`py-2 px-3 sm:px-4 font-medium text-xs sm:text-sm focus:outline-none cursor-pointer ${
+                      index === 0
+                        ? "text-blue-600 border-b-2 border-blue-600"
+                        : "text-slate-600 hover:text-blue-600"
+                    }`}
+                    onClick={(e) => {
+                      // Clear all active tabs
+                      e.currentTarget.parentElement
+                        ?.querySelectorAll("button")
+                        .forEach((btn) => {
+                          btn.classList.remove(
+                            "text-blue-600",
+                            "border-b-2",
+                            "border-blue-600",
+                          );
+                          btn.classList.add(
+                            "text-slate-600",
+                            "hover:text-blue-600",
+                          );
+                        });
 
-                    // Set this tab as active
-                    e.currentTarget.classList.remove(
-                      "text-slate-600",
-                      "hover:text-blue-600",
-                    );
-                    e.currentTarget.classList.add(
-                      "text-blue-600",
-                      "border-b-2",
-                      "border-blue-600",
-                    );
+                      // Set this tab as active
+                      e.currentTarget.classList.remove(
+                        "text-slate-600",
+                        "hover:text-blue-600",
+                      );
+                      e.currentTarget.classList.add(
+                        "text-blue-600",
+                        "border-b-2",
+                        "border-blue-600",
+                      );
 
-                    // Hide all tab contents
-                    document
-                      .querySelectorAll(".tab-content")
-                      .forEach((content) => {
-                        content.classList.add("hidden");
-                      });
+                      // Hide all tab contents
+                      document
+                        .querySelectorAll(".tab-content")
+                        .forEach((content) => {
+                          content.classList.add("hidden");
+                        });
 
-                    // Show the selected tab content
-                    document
-                      .getElementById(
-                        `tab-${tab.replace(/\s+/g, "-").toLowerCase()}`,
-                      )
-                      ?.classList.remove("hidden");
-                  }}
-                >
-                  <div className="flex items-center">
-                    <img
-                      src={`https://${tab === "Cursor" ? "www.cursor.com" : tab === "Claude Desktop" ? "claude.ai" : "codeium.com"}/favicon.ico`}
-                      alt={tab}
-                      className="h-4 w-4 mr-2 inline-block"
-                    />
-                    {tab}
-                  </div>
-                </button>
-              ))}
+                      // Show the selected tab content
+                      document
+                        .getElementById(
+                          `tab-${tab.replace(/\s+/g, "-").toLowerCase()}`,
+                        )
+                        ?.classList.remove("hidden");
+                    }}
+                  >
+                    <div className="flex items-center">
+                      <img
+                        src={getToolFaviconUrl(tab)}
+                        alt={tab}
+                        className="h-4 w-4 mr-2 inline-block"
+                      />
+                      {tab}
+                    </div>
+                  </button>
+                ),
+              )}
             </div>
 
             {/* Tab content */}
@@ -404,6 +422,96 @@ export default function Content({
                 </pre>
               </div>
             </div>
+            <div id="tab-insiders" className="tab-content hidden">
+              <div className="bg-slate-50 p-3 sm:p-4 rounded-md border border-slate-200">
+                <p className="text-sm text-slate-700 mb-2">
+                  To add this MCP to VSCode Insiders, update your{" "}
+                  <code className="bg-slate-200 px-1.5 py-0.5 rounded text-blue-700 break-words">
+                    .vscode/mcp.json
+                  </code>
+                  :
+                </p>
+                <pre className="bg-slate-800 text-slate-100 p-3 rounded-md text-sm overflow-x-auto relative">
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(`{
+  "mcpServers": {
+    "${serverName}": {
+      "type": "sse",
+      "url": "${url}"
+    }
+  }
+}`);
+                      const copyBtn =
+                        document.querySelector("#vscode-copy-btn");
+                      if (copyBtn) {
+                        copyBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-emerald-500"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+                        setTimeout(() => {
+                          copyBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`;
+                        }, 2000);
+                      }
+                    }}
+                    id="vscode-copy-btn"
+                    className="absolute top-2 right-2 p-1 rounded-md hover:bg-slate-700 transition-colors focus:outline-none"
+                    aria-label="Copy code"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <rect
+                        x="9"
+                        y="9"
+                        width="13"
+                        height="13"
+                        rx="2"
+                        ry="2"
+                      ></rect>
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                    </svg>
+                  </button>
+                  <button
+                    onClick={() => {
+                      window.open(`vscode://mcp-remote?url=${url}`);
+                    }}
+                    id="vscode-open-btn"
+                    className="absolute top-2 right-8 p-1 rounded-md hover:bg-slate-700 transition-colors focus:outline-none"
+                    aria-label="Open VSCode Insiders"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                      <polyline points="15 3 21 3 21 9"></polyline>
+                      <line x1="10" y1="14" x2="21" y2="3"></line>
+                    </svg>
+                  </button>
+                  {`{
+  "servers": {
+    "${serverName}": {
+    "type": "sse",
+      "url": "${url}"
+    }
+  }
+}`}
+                </pre>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -415,7 +523,7 @@ export default function Content({
             rel="noopener noreferrer"
           >
             <img
-              src="https://claude.ai/favicon.ico"
+              src={getToolFaviconUrl("Claude Desktop")}
               alt="Claude"
               className="h-6 w-6 mr-2"
             />
@@ -428,7 +536,7 @@ export default function Content({
             rel="noopener noreferrer"
           >
             <img
-              src="https://www.cursor.com/favicon.ico"
+              src={getToolFaviconUrl("Cursor")}
               alt="Cursor"
               className="h-6 w-6 mr-2"
             />
@@ -441,11 +549,24 @@ export default function Content({
             rel="noopener noreferrer"
           >
             <img
-              src="https://codeium.com/favicon.ico"
+              src={getToolFaviconUrl("Windsurf")}
               alt="Windsurf"
               className="h-6 w-6 mr-2"
             />
             Windsurf
+          </a>
+          <a
+            href="https://code.visualstudio.com/insiders/"
+            className="text-blue-600 hover:text-blue-800 flex items-center transition-colors"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <img
+              src="https://code.visualstudio.com/assets/favicon.ico"
+              alt="VSCode"
+              className="h-6 w-6 mr-2"
+            />
+            VSCode Insiders
           </a>
         </div>
       </div>
