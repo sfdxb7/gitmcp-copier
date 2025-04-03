@@ -37,6 +37,55 @@ export function registerTools(
       return searchRepositoryDocumentation({ requestHost, requestUrl, query });
     },
   );
+
+  // Special case: Register a generic documentation fetcher for the docs page
+  const isDocsPage = requestHost === "gitmcp.io" && requestUrl === "/docs";
+  if (isDocsPage) {
+    mcp.tool(
+      "fetch_generic_documentation",
+      "Fetch documentation for any GitHub repository by providing owner and project name",
+      {
+        owner: z
+          .string()
+          .describe("The GitHub repository owner (username or organization)"),
+        repo: z.string().describe("The GitHub repository name"),
+      },
+      async ({ owner, repo }) => {
+        const { fetchDocumentation } = await import("./fetchAndSearch.js");
+        // Use the existing logic but override the URL to point to the specified repository
+        return fetchDocumentation({
+          requestHost: "gitmcp.io",
+          requestUrl: `/${owner}/${repo}`,
+        });
+      },
+    );
+
+    // Also register a search tool for generic documentation
+    mcp.tool(
+      "search_generic_documentation",
+      "Search within documentation for any GitHub repository by providing owner, project name, and search query",
+      {
+        owner: z
+          .string()
+          .describe("The GitHub repository owner (username or organization)"),
+        repo: z.string().describe("The GitHub repository name"),
+        query: z
+          .string()
+          .describe("The search query to find relevant documentation"),
+      },
+      async ({ owner, repo, query }) => {
+        const { searchRepositoryDocumentation } = await import(
+          "./fetchAndSearch.js"
+        );
+        // Use the existing search logic but override the URL to point to the specified repository
+        return searchRepositoryDocumentation({
+          requestHost: "gitmcp.io",
+          requestUrl: `/${owner}/${repo}`,
+          query,
+        });
+      },
+    );
+  }
 }
 
 /**
