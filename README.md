@@ -69,7 +69,7 @@ Yes, GitMCP is compatible with any AI assistant supporting the Model Context Pro
 
 ### Is GitMCP compatible with all GitHub projects?
 
-Absolutely! GitMCP works with any public GitHub repository without requiring any modifications. It prioritizes the `llms.txt` file and falls back to `README.md` if the former is unavailable. Future updates aim to support additional documentation methods and even generate content dynamically.
+Absolutely! GitMCP works with any public GitHub repository without requiring any modifications. It prioritizes the `llms.txt` file and falls back to `README.md` or other if the former is unavailable. Future updates aim to support additional documentation methods and even generate content dynamically.
 
 ### Does GitMCP cost money?
 
@@ -81,7 +81,7 @@ GitMCP doesn't store any personally identifiable information or queries.
 
 ## Contributing
 
-We welcome contributions! Please take a look at our [contribution](https://github.com/idosal/git-mcp/blob/main/.github/CONTRIBUTING.md) guidelines. Tl;dr If you have ideas, suggestions, or improvements, feel free to open issues or submit pull requests to enhance GitMCP.
+We welcome contributions! Please take a look at our [contribution](https://github.com/idosal/git-mcp/blob/main/.github/CONTRIBUTING.md) guidelines.
 
 ## License
 
