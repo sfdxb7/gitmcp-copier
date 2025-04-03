@@ -11,6 +11,8 @@ export function getRepoData(
   if (requestUrl) {
     if (requestUrl.startsWith("/")) {
       fullUrl = new URL(`${protocol}://${requestHost}${requestUrl}`);
+    } else if (requestUrl.startsWith("http")) {
+      fullUrl = new URL(requestUrl);
     } else {
       fullUrl = new URL(`${protocol}://${requestUrl}`);
     }
