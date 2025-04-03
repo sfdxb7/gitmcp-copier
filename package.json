@@ -5,7 +5,7 @@
   "main": "server-stdio.js",
   "type": "module",
   "scripts": {
-    "vercel-build": "next build",
+    "build": "next build",
     "start": "node dist/server.js",
     "test": "echo \"Error: no test specified\" && exit 1",
     "inspector": "npm run build && npm exec @modelcontextprotocol/inspector dist/server-stdio.js",
