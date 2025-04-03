@@ -81,7 +81,7 @@ GitMCP doesn't store any personally identifiable information or queries.
 
 ## Contributing
 
-We welcome contributions! If you have ideas, suggestions, or improvements, please feel free to open issues or submit pull requests to enhance GitMCP.
+We welcome contributions! Please take a look at our [contribution](https://github.com/idosal/git-mcp/blob/main/.github/CONTRIBUTING.md) guidelines. Tl;dr If you have ideas, suggestions, or improvements, feel free to open issues or submit pull requests to enhance GitMCP.
 
 ## License
 
