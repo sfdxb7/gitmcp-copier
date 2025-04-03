@@ -1,11 +1,22 @@
+export type RepoData = {
+  subdomain?: string;
+  path?: string;
+  owner?: string;
+  repo?: string;
+};
+type GetRepoDataLog = RepoData & {
+  requestHost: string;
+  requestUrl: string | undefined;
+};
 export function getRepoData(
   requestHost: string,
   requestUrl?: string,
-): { subdomain?: string; path?: string; owner?: string; repo?: string } {
+): RepoData {
   // Parse the URL if provided
-  console.log("-------getRepoData-----------");
-  console.log("requestHost", requestHost);
-  console.log("requestUrl", requestUrl);
+  const getRepoDataLog: GetRepoDataLog = {
+    requestHost,
+    requestUrl,
+  };
   const protocol = requestHost.includes("localhost") ? "http" : "https";
   let fullUrl = new URL(`${protocol}://${requestHost}`);
   if (requestUrl) {
@@ -22,9 +33,9 @@ export function getRepoData(
   // Check for subdomain pattern: {subdomain}.gitmcp.io/{path}
   if (requestHost.includes(".gitmcp.io")) {
     const subdomain = requestHost.split(".")[0];
-    console.log("subdomain", subdomain);
-    console.log("path", path);
-    console.log("-------------------------");
+    getRepoDataLog.subdomain = subdomain;
+    getRepoDataLog.path = path;
+    console.log("getRepoDataLog", JSON.stringify(getRepoDataLog, null, 2));
     return { subdomain, path };
   }
   // Check for github repo pattern: gitmcp.io/{owner}/{repo} or git-mcp.vercel.app/{owner}/{repo}
@@ -35,13 +46,12 @@ export function getRepoData(
     // Extract owner/repo from path
     const [owner, repo] = path.split("/");
     if (owner && repo) {
-      console.log("owner", owner);
-      console.log("repo", repo);
-      console.log("-------------------------");
+      getRepoDataLog.owner = owner;
+      getRepoDataLog.repo = repo;
+      console.log("getRepoDataLog", JSON.stringify(getRepoDataLog, null, 2));
       return { owner, repo };
     }
   }
-  console.log("returning empty object");
-  console.log("-------------------------");
+  console.log("getRepoDataLog", JSON.stringify(getRepoDataLog, null, 2));
   return {};
 }

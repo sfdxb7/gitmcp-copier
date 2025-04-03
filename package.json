@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "next build",
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "vitest run",
     "inspector": "vercel dev && npm exec @modelcontextprotocol/inspector",
     "prepare": "husky"
   },
@@ -49,6 +49,7 @@
     "lint-staged": "^15.5.0",
     "postcss": "^8.5.3",
     "prettier": "^3.5.3",
-    "tailwindcss": "^4.1.0"
+    "tailwindcss": "^4.1.0",
+    "vitest": "^1.6.1"
   }
 }
