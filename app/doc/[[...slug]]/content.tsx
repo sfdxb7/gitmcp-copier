@@ -228,6 +228,30 @@ export default function Content({
                       <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
                     </svg>
                   </button>
+                  <button
+                    onClick={() => {
+                      window.open(`cursor://mcp-remote?url=${url}`);
+                    }}
+                    id="cursor-open-btn"
+                    className="absolute top-2 right-8 p-1 rounded-md hover:bg-slate-700 transition-colors focus:outline-none"
+                    aria-label="Open Cursor"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                      <polyline points="15 3 21 3 21 9"></polyline>
+                      <line x1="10" y1="14" x2="21" y2="3"></line>
+                    </svg>
+                  </button>
                   {`{
   "mcpServers": {
     "${serverName}": {
