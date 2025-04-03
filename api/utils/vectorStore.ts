@@ -805,8 +805,6 @@ export async function searchDocumentation(
   try {
     const queryEmbedding = await getEmbeddings(query);
 
-    console.log("Query embeddings:", queryEmbedding);
-
     // Query vectors without using filter prefix
     const results = await vector.query({
       vector: queryEmbedding,
@@ -814,9 +812,7 @@ export async function searchDocumentation(
       includeMetadata: true,
     });
 
-    console.warn(
-      `Found ${JSON.stringify(results)} results for ${owner}/${repo}`,
-    );
+    console.log(`Found ${results} results for ${owner}/${repo}`);
 
     if (!results || !Array.isArray(results)) {
       console.warn(`No results found for ${owner}/${repo}`);
