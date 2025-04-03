@@ -1,17 +1,11 @@
 # GitMCP
 
-<p align="center">
-  <picture>
-  <source srcset="https://github.com/user-attachments/assets/3afe89b9-a06c-4a39-9362-197cbd16edc1" media="(prefers-color-scheme: light)">
-  <source srcset="https://github.com/user-attachments/assets/49f70125-89a9-4508-86f6-11da0cb2b124" media="(prefers-color-scheme: dark)">
-  <img src="logo-light.png" alt="Logo" width=30% height=30%">
-</picture>
-</p>
+<img width="1148" alt="image" src="https://github.com/user-attachments/assets/e0c719d2-62f4-450e-90f3-c7dd0194f0b9" />
 
 <p align="center">
   <a href="#features">Features</a> •
-  <a href="#how-it-works">How It Works</a> •
   <a href="#usage">Usage</a> •
+  <a href="#how-it-works">How It Works</a> •
   <a href="#examples">Examples</a> •
   <a href="#faq">FAQ</a> •
   <a href="#privacy">Privacy</a> •
@@ -29,10 +23,6 @@ GitMCP is a free, open-source service that seamlessly transforms any GitHub proj
 - **Zero Setup Required**: No configurations or modifications needed — GitMCP works out of the box.
 - **Completely Free**
 
-## How It Works
-
-GitMCP serves as a bridge between your GitHub repository's documentation and AI assistants by implementing the Model Context Protocol (MCP). When an AI assistant requires information from your repository, it sends a request to GitMCP. GitMCP retrieves the relevant content and provides semantic search capabilities, ensuring efficient and accurate information delivery.
-
 ## Usage
 
 To make your GitHub repository accessible to AI assistants via GitMCP, use the following URL formats:
@@ -43,6 +33,10 @@ To make your GitHub repository accessible to AI assistants via GitMCP, use the f
 Congratulations! The chosen GitHub project is now fully accessible to your AI.
 
 Replace `{owner}` with your GitHub username or organization name and `{repo}` with your repository name. Once configured, your AI assistant can access the project's documentation seamlessly.
+
+## How It Works
+
+GitMCP serves as a bridge between your GitHub repository's documentation and AI assistants by implementing the Model Context Protocol (MCP). When an AI assistant requires information from your repository, it sends a request to GitMCP. GitMCP retrieves the relevant content and provides semantic search capabilities, ensuring efficient and accurate information delivery.
 
 ## Examples
 

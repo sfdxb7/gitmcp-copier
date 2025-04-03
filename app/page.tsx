@@ -14,6 +14,19 @@ import {
 export default function Home() {
   return (
     <div className="min-h-screen bg-gray-900 text-gray-100">
+      {/* GitHub Link */}
+      <div className="absolute top-4 right-4 sm:top-6 sm:right-6 z-10">
+        <a
+          href="https://github.com/idosal/git-mcp"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-2 bg-gray-800 hover:bg-gray-700 text-gray-200 px-3 py-2 rounded-md transition-colors duration-200 border border-gray-700 z-10"
+        >
+          <Github className="h-5 w-5" />
+          <span className="hidden sm:inline">GitHub</span>
+        </a>
+      </div>
+
       {/* Hero Section */}
       <div className="relative overflow-hidden">
         <div className="absolute inset-0 bg-grid-gray-800 [mask-image:linear-gradient(0deg,rgba(17,24,39,0.7),rgba(17,24,39,0.5))] bg-[length:20px_20px]"></div>
@@ -30,8 +43,10 @@ export default function Home() {
               GitMCP
             </h1>
             <p className="max-w-3xl mx-auto text-lg sm:text-xl md:text-3xl font-light tracking-tight text-gray-300/90 leading-relaxed">
-              Instantly create an{" "}
-              <span className="text-emerald-400 font-medium">MCP server</span>{" "}
+              Instantly create a{" "}
+              <span className="text-emerald-400 font-medium">
+                Remote MCP server
+              </span>{" "}
               for any GitHub project
             </p>
           </div>

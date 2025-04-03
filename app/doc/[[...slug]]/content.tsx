@@ -1,6 +1,7 @@
 "use client";
 import React, { useState } from "react";
 import { ClipboardCopy, Check } from "lucide-react";
+import { bt } from "@upstash/redis/zmscore-BdNsMd17";
 
 export default function Content({
   subdomain,
@@ -15,6 +16,8 @@ export default function Content({
   repo?: string;
   url?: string;
 }) {
+  const [activeTabIndex, setActiveTabIndex] = useState(0);
+
   const description: React.ReactNode = (() => {
     if (subdomain && path) {
       return (
@@ -136,36 +139,12 @@ export default function Content({
                   <button
                     key={tab}
                     className={`py-2 px-3 sm:px-4 font-medium text-xs sm:text-sm focus:outline-none cursor-pointer ${
-                      index === 0
+                      activeTabIndex === index
                         ? "text-blue-600 border-b-2 border-blue-600"
                         : "text-slate-600 hover:text-blue-600"
                     }`}
                     onClick={(e) => {
-                      // Clear all active tabs
-                      e.currentTarget.parentElement
-                        ?.querySelectorAll("button")
-                        .forEach((btn) => {
-                          btn.classList.remove(
-                            "text-blue-600",
-                            "border-b-2",
-                            "border-blue-600",
-                          );
-                          btn.classList.add(
-                            "text-slate-600",
-                            "hover:text-blue-600",
-                          );
-                        });
-
-                      // Set this tab as active
-                      e.currentTarget.classList.remove(
-                        "text-slate-600",
-                        "hover:text-blue-600",
-                      );
-                      e.currentTarget.classList.add(
-                        "text-blue-600",
-                        "border-b-2",
-                        "border-blue-600",
-                      );
+                      setActiveTabIndex(index);
 
                       // Hide all tab contents
                       document
@@ -188,7 +167,13 @@ export default function Content({
                         alt={tab}
                         className="h-4 w-4 mr-2 inline-block"
                       />
-                      {tab}
+                      <span
+                        className={`${
+                          activeTabIndex === index ? "inline" : "hidden"
+                        } sm:inline`}
+                      >
+                        {tab}
+                      </span>
                     </div>
                   </button>
                 ),
