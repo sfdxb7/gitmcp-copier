@@ -16,7 +16,7 @@ export default async function Page({
   const cleanUrl = getCleanUrl(headersList, slug);
 
   if (!cleanUrl) {
-    console.error("No clean URL found");
+    console.error("No clean URL found, falling back to client resolution");
     return <ContentClient />;
   }
 

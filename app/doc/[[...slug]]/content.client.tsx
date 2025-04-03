@@ -5,11 +5,14 @@ import { getRepoData } from "../../../shared/repoData";
 import Content from "./content";
 import { removeLeadingUnderscore } from "../../../shared/urlUtils";
 
+/**
+ * This component is used when we can't get the full request URL from the headers
+ */
 export default function ContentClient() {
-  const [refererUrl, setRefererUrl] = useState("");
+  const [locationHref, setLocationHref] = useState("");
   useEffect(() => {
-    const refererUrl = window.location.href;
-    setRefererUrl(refererUrl);
+    const locationHref = window.location.href;
+    setLocationHref(locationHref);
   }, []);
 
   const { subdomain, path, owner, repo, url } = useMemo<{
@@ -19,17 +22,17 @@ export default function ContentClient() {
     repo?: string;
     url?: string;
   }>(() => {
-    if (!refererUrl) {
+    if (!locationHref) {
       return {};
     }
-    const refererUrlWithoutUnderscore = removeLeadingUnderscore(refererUrl);
-    const refererUrlObj = new URL(refererUrlWithoutUnderscore);
-    const host = refererUrlObj.host;
-    let pathname = refererUrlObj.pathname;
+    const locationWithoutUnderscore = removeLeadingUnderscore(locationHref);
+    const locationObj = new URL(locationWithoutUnderscore);
+    const host = locationObj.host;
+    let pathname = locationObj.pathname;
     const repoData = getRepoData(host, pathname);
-    return { ...repoData, url: refererUrlObj.toString() };
-  }, [refererUrl]);
-  return refererUrl ? (
+    return { ...repoData, url: locationObj.toString() };
+  }, [locationHref]);
+  return locationHref ? (
     <Content
       subdomain={subdomain}
       path={path}

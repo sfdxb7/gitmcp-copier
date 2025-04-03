@@ -1,14 +1,12 @@
 {
   "name": "git-mcp",
   "version": "1.0.0",
-  "description": "",
-  "main": "server-stdio.js",
+  "description": "GitMCP is a tool that allows you to get the documentation for a given repository.",
   "type": "module",
   "scripts": {
     "build": "next build",
-    "start": "node dist/server.js",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "inspector": "npm run build && npm exec @modelcontextprotocol/inspector dist/server-stdio.js",
+    "inspector": "vercel dev && npm exec @modelcontextprotocol/inspector",
     "prepare": "husky"
   },
   "lint-staged": {
