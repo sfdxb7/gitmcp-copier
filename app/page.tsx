@@ -30,8 +30,10 @@ export default function Home() {
               GitMCP
             </h1>
             <p className="max-w-3xl mx-auto text-lg sm:text-xl md:text-3xl font-light tracking-tight text-gray-300/90 leading-relaxed">
-              Instantly create an{" "}
-              <span className="text-emerald-400 font-medium">MCP server</span>{" "}
+              Instantly create a{" "}
+              <span className="text-emerald-400 font-medium">
+                Remote MCP server
+              </span>{" "}
               for any GitHub project
             </p>
           </div>
