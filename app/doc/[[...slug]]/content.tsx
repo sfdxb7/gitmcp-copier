@@ -51,13 +51,15 @@ export default function Content({
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 flex flex-col items-center p-8">
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 flex flex-col items-center p-8 px-4 sm:px-8">
       <div className="max-w-3xl w-full">
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold mb-2 relative inline-block">
+          <h1 className="text-3xl sm:text-4xl font-bold mb-2 relative inline-block">
             <span className="text-blue-800">GitHub Documentation MCP</span>
           </h1>
-          <div className="mt-4 text-xl text-slate-700">{description}</div>
+          <div className="mt-4 text-lg sm:text-xl text-slate-700">
+            {description}
+          </div>
           <div className="flex items-center justify-center mt-6">
             <div className="h-0.5 w-12 bg-slate-300"></div>
             <div className="mx-4">
@@ -80,12 +82,14 @@ export default function Content({
           </div>
         </div>
 
-        <div className="bg-white shadow-lg rounded-lg p-6 my-8 border border-slate-200">
-          <h2 className="text-xl font-semibold text-blue-800 mb-4">
-            Server URL
+        <div className="bg-white shadow-lg rounded-lg p-4 sm:p-6 my-8 border border-slate-200">
+          <h2 className="text-lg sm:text-xl font-semibold text-blue-800 mb-4">
+            MCP Server URL
           </h2>
           <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 flex items-center justify-between mb-2 relative">
-            <code className="text-slate-700 pr-10 break-all">{url}</code>
+            <code className="text-slate-700 pr-10 break-all text-xs sm:text-lg">
+              {url}
+            </code>
             <button
               onClick={copyUrl}
               className="absolute right-2 p-1.5 rounded-full hover:bg-slate-200 transition-colors"
@@ -103,18 +107,18 @@ export default function Content({
           )}
         </div>
 
-        <div className="bg-white shadow-lg rounded-lg p-6 my-8 border border-slate-200">
-          <h2 className="text-xl font-semibold text-blue-800 mb-4">
+        <div className="bg-white shadow-lg rounded-lg p-4 sm:p-6 my-8 border border-slate-200">
+          <h2 className="text-lg sm:text-xl font-semibold text-blue-800 mb-4">
             Integration Examples
           </h2>
 
           {/* Tabs for different integrations */}
           <div className="mb-6">
-            <div className="flex border-b border-slate-200 mb-4">
+            <div className="flex flex-wrap border-b border-slate-200 mb-4">
               {["Cursor", "Claude Desktop", "Windsurf"].map((tab, index) => (
                 <button
                   key={tab}
-                  className={`py-2 px-4 font-medium text-sm focus:outline-none cursor-pointer ${
+                  className={`py-2 px-3 sm:px-4 font-medium text-xs sm:text-sm focus:outline-none cursor-pointer ${
                     index === 0
                       ? "text-blue-600 border-b-2 border-blue-600"
                       : "text-slate-600 hover:text-blue-600"
@@ -175,10 +179,10 @@ export default function Content({
 
             {/* Tab content */}
             <div id="tab-cursor" className="tab-content">
-              <div className="bg-slate-50 p-4 rounded-md border border-slate-200">
+              <div className="bg-slate-50 p-3 sm:p-4 rounded-md border border-slate-200">
                 <p className="text-sm text-slate-700 mb-2">
                   To add this MCP to Cursor, update your{" "}
-                  <code className="bg-slate-200 px-1.5 py-0.5 rounded text-blue-700">
+                  <code className="bg-slate-200 px-1.5 py-0.5 rounded text-blue-700 break-words">
                     ~/.cursor/mcp.json
                   </code>
                   :
@@ -264,10 +268,10 @@ export default function Content({
             </div>
 
             <div id="tab-claude-desktop" className="tab-content hidden">
-              <div className="bg-slate-50 p-4 rounded-md border border-slate-200">
+              <div className="bg-slate-50 p-3 sm:p-4 rounded-md border border-slate-200">
                 <p className="text-sm text-slate-700 mb-2">
                   To add this MCP to Claude Desktop, update your{" "}
-                  <code className="bg-slate-200 px-1.5 py-0.5 rounded text-blue-700">
+                  <code className="bg-slate-200 px-1.5 py-0.5 rounded text-blue-700 break-words">
                     claude_desktop_config.json
                   </code>
                   :
@@ -337,10 +341,10 @@ export default function Content({
             </div>
 
             <div id="tab-windsurf" className="tab-content hidden">
-              <div className="bg-slate-50 p-4 rounded-md border border-slate-200">
+              <div className="bg-slate-50 p-3 sm:p-4 rounded-md border border-slate-200">
                 <p className="text-sm text-slate-700 mb-2">
                   To add this MCP to Windsurf, update your{" "}
-                  <code className="bg-slate-200 px-1.5 py-0.5 rounded text-blue-700">
+                  <code className="bg-slate-200 px-1.5 py-0.5 rounded text-blue-700 break-words">
                     ~/.codeium/windsurf/mcp_config.json
                   </code>
                   :
@@ -403,7 +407,7 @@ export default function Content({
           </div>
         </div>
 
-        <div className="mt-8 flex items-center justify-center space-x-8">
+        <div className="mt-8 flex flex-wrap items-center justify-center gap-4 sm:gap-0 sm:space-x-8">
           <a
             href="https://claude.ai"
             className="text-blue-600 hover:text-blue-800 flex items-center transition-colors"
