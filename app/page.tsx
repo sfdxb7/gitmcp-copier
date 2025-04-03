@@ -140,6 +140,47 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Video Demo Section */}
+      <section className="py-8 bg-gray-900">
+        <div className="text-center mb-4 sm:mb-4">
+          <h2 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-emerald-400 to-blue-500 text-gradient">
+            With Github Pages
+          </h2>
+          <p className="mt-4 text-base sm:text-xl text-gray-300 max-w-3xl mx-auto font-light px-2">
+            GitMCP works seamlesslywith <b>GitHub Pages</b>. Here's an example:
+          </p>
+        </div>
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="relative rounded-xl overflow-hidden shadow-2xl border border-gray-700">
+            <video className="w-full h-auto" controls muted loop playsInline>
+              <source src="./GitMCP_final.mp4" type="video/mp4" />
+              Your browser does not support the video tag.
+            </video>
+          </div>
+        </div>
+      </section>
+
+      {/* Video PW Demo Section */}
+      <section className="py-8 bg-gray-900">
+        <div className="text-center mb-4 sm:mb-4">
+          <h2 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-emerald-400 to-blue-500 text-gradient">
+            A Github Repo
+          </h2>
+          <p className="mt-4 text-base sm:text-xl text-gray-300 max-w-3xl mx-auto font-light px-2">
+            GitMCP works with <b>any public GitHub repository</b>. Here's an
+            example:
+          </p>
+        </div>
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="relative rounded-xl overflow-hidden shadow-2xl border border-gray-700">
+            <video className="w-full h-auto" controls muted loop playsInline>
+              <source src="./GitMCP_PW.mp4" type="video/mp4" />
+              Your browser does not support the video tag.
+            </video>
+          </div>
+        </div>
+      </section>
+
       {/* What is GitMCP Section */}
       <section className="py-10 sm:py-16 bg-gray-800">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
