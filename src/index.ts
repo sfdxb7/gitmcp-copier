@@ -27,36 +27,29 @@ export class MyMCP extends McpAgent {
   });
 
   async init() {
-    console.log("Base MyMCP initialized");
     const request: Request = this.props.request as Request;
-    const host = request.headers.get("host");
-    const protocol = host?.includes("localhost") ? "http" : "https";
-    const adjustedUrl = new URL(request.url || "", `${protocol}://${host}`);
+    const url = new URL(request.url);
+    const host = url.host;
 
-    if (!host || !adjustedUrl) {
+    if (!url || !host) {
       throw new Error("Invalid request: Missing host or URL");
     }
 
     // clean search params
-    adjustedUrl.searchParams.forEach((value, key) => {
+    url.searchParams.forEach((_, key) => {
       if (key !== "sessionId") {
-        adjustedUrl.searchParams.delete(key);
+        url.searchParams.delete(key);
       }
     });
     // clean hash
-    adjustedUrl.hash = "";
-    const adjustedUrlString = adjustedUrl.toString();
+    url.hash = "";
+    const canonicalUrl = url.toString();
 
     // Access env from this.env (Cloudflare worker environment is accessible here)
     const env = this.env;
-    console.log(
-      "Environment in init:",
-      env ? "Available" : "Not available",
-      env,
-    );
 
     // Pass env to getMcpTools
-    getMcpTools(host, adjustedUrlString, env).forEach((tool) => {
+    getMcpTools(host, canonicalUrl, env).forEach((tool) => {
       this.server.tool(
         tool.name,
         tool.description,
@@ -74,12 +67,13 @@ const mcpHandler = MyMCP.mount("*");
 // Export a request handler that checks the transport header
 export default {
   async fetch(request: Request, env: any, ctx: any) {
-    // Check if the request has a transport header indicating SSE
-    console.log("Request Headers:", request.headers);
-    console.log("Request URL:", request.url);
-    const isSse = request.headers.get("accept")?.includes("text/event-stream");
-    const isMessage = request.url.includes("message");
-    console.log("ctx", ctx);
+    const url = new URL(request.url);
+    const isSse =
+      request.headers.get("accept")?.includes("text/event-stream") &&
+      !!url.pathname &&
+      url.pathname !== "/";
+    const isMessage =
+      request.method === "POST" && url.pathname.includes("message");
     ctx.props.request = request;
 
     if (isMessage) {
@@ -88,7 +82,9 @@ export default {
 
     if (isSse) {
       const newHeaders = new Headers(request.headers);
-      newHeaders.set("Content-Type", "text/event-stream");
+      if (!newHeaders.has("accept")) {
+        newHeaders.set("Content-Type", "text/event-stream");
+      }
 
       const modifiedRequest = new Request(request, {
         headers: newHeaders,

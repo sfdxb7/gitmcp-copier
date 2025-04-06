@@ -190,7 +190,6 @@ export async function fetchDocumentation({
     if (content && owner && repo) {
       try {
         // Pass the Vectorize binding from env
-        console.log("ENV VECTORIZE", env);
         await storeDocumentationVectors(
           owner,
           repo,
@@ -203,46 +202,6 @@ export async function fetchDocumentation({
         console.error(`Failed to store documentation vectors: ${error}`);
         // Continue despite vector storage failure
       }
-    }
-  }
-  // Default/fallback case
-  else {
-    // Map "gitmcp.io" to "github.io"
-    const mappedHost = host.replace("gitmcp.io", "github.io");
-    let baseURL = `https://${mappedHost}/${repo}`;
-    if (!baseURL.endsWith("/")) {
-      baseURL += "/";
-    }
-
-    // Try fetching llms.txt with robots.txt check
-    const llmsResult = await fetchFileWithRobotsTxtCheck(baseURL + "llms.txt");
-
-    if (llmsResult.blockedByRobots) {
-      blockedByRobots = true;
-    } else if (llmsResult.content) {
-      content = llmsResult.content;
-      fileUsed = "llms.txt";
-    }
-
-    // If llms.txt not available or blocked, try readme.md
-    if (!content && !blockedByRobots) {
-      const readmeResult = await fetchFileWithRobotsTxtCheck(
-        baseURL + "readme.md",
-      );
-
-      if (readmeResult.blockedByRobots) {
-        blockedByRobots = true;
-      } else if (readmeResult.content) {
-        content = readmeResult.content;
-        fileUsed = "readme.md";
-      }
-    }
-
-    // If any path was blocked by robots.txt, return appropriate message
-    if (blockedByRobots) {
-      content =
-        "Access to this GitHub Pages site is restricted by robots.txt. GitMCP respects robots.txt directives.";
-      fileUsed = "robots.txt restriction";
     }
   }
 
@@ -318,21 +277,9 @@ export async function searchRepositoryDocumentation({
         `Fetched documentation from ${fileUsed} (${content.length} characters)`,
       );
 
-      // Only index and search if we got actual content
+      // Only search if we found content
       if (content && owner && repo && content !== "No documentation found.") {
         try {
-          // Wait for vectors to be stored - pass the Vectorize binding
-          const vectorCount = await storeDocumentationVectors(
-            owner,
-            repo,
-            content,
-            fileUsed,
-            env.VECTORIZE,
-          );
-          console.log(
-            `Successfully indexed ${vectorCount} document chunks for ${owner}/${repo}`,
-          );
-
           // Wait a short time to ensure indexing is complete
           await new Promise((resolve) => setTimeout(resolve, 1000));
 
@@ -357,10 +304,8 @@ export async function searchRepositoryDocumentation({
                   type: "text" as const,
                   text:
                     `### Search Results for: "${query}"\n\n` +
-                    // `We've just indexed the documentation for this repository (${vectorCount} chunks). ` +
-                    // `Documentation:\n\n` +
+                    // fallback to content
                     docResult.content[0].text,
-                  // `Please try your search again in a moment for more fine-grained`,
                 },
               ],
             };
