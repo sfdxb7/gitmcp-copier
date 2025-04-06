@@ -1,8 +1,8 @@
 // Define a generic Dict type since we can't import it directly
 type Dict = { [key: string]: any };
 
-// TTL for vector entries in seconds (1 day)
-const VECTOR_TTL = 60 * 60 * 24 * 1;
+// TTL for vector entries in milliseconds (1 day)
+const VECTOR_TTL = 60 * 60 * 24 * 1 * 1000;
 
 // Vectorize interface to match the Cloudflare API
 interface VectorizeVector {
@@ -79,7 +79,6 @@ export async function getEmbeddings(text: string): Promise<number[]> {
   // This is an improved embedding function that creates a better vector representation
   // Still simple but designed to create more topical differentiation
 
-  // Create a vector with 1024 dimensions to match Upstash Vector requirements
   const view = new Float32Array(1024);
 
   // Extract key terms and topics from the text
@@ -730,6 +729,7 @@ export async function storeDocumentationVectors(
           owner,
           repo,
           chunkIndex: i,
+          timestamp: Date.now(), // e.g., "2025-04-06T20:52:37.123Z"
         },
       });
     }
@@ -753,16 +753,6 @@ function calculateKeywordMatchScore(text: string, query: string): number {
   // Lower-case for case-insensitive matching
   const lowerText = text.toLowerCase();
   const lowerQuery = query.toLowerCase();
-
-  // Detect query intent
-  const isInstallationQuery =
-    /\bhow\b.*\binstall\b|\bsetup\b|\binstallation\b/i.test(lowerQuery);
-  const isUsageQuery = /\bhow\b.*\buse\b|\busage\b|\bexample\b/i.test(
-    lowerQuery,
-  );
-  const isErrorQuery = /\berror\b|\bissue\b|\bproblem\b|\bfail\b/i.test(
-    lowerQuery,
-  );
 
   let score = 0;
 
@@ -861,7 +851,7 @@ export async function searchDocumentation(
   repo: string,
   query: string,
   limit: number = 5,
-  vectorize?: Vectorize,
+  vectorize: Vectorize,
 ): Promise<Array<{ chunk: string; score: number }>> {
   try {
     // Check if Vectorize is available
@@ -881,12 +871,14 @@ export async function searchDocumentation(
       topK: limit,
       namespace: namespace, // Use namespace instead of filter
       returnValues: false, // We don't need the vector values back
+      filter: {
+        timestamp: { $gt: Date.now() - VECTOR_TTL }, // Only keep recent vectors
+      },
       returnMetadata: true, // We need the metadata for chunks
     });
 
     console.log(
       `Found ${results?.matches?.length || 0} results in namespace ${namespace}`,
-      results,
     );
 
     if (!results || !results.matches || results.matches.length === 0) {
@@ -938,25 +930,6 @@ export async function searchDocumentation(
  * @returns Array of text chunks with preserved structure
  */
 export function chunkStructuredDocs(text: string): string[] {
-  // Check if this is a special llms.txt file that needs list-item level chunking
-  //   const isLlmsFile = fileName?.toLowerCase().includes('llms.txt');
-
-  // Quick check to see if this looks like structured documentation
-  // Check for both link patterns: [title](url) and nested list items with links
-  //   const hasLinkPatterns = /\[.+?\]\(.+?\)/.test(text);
-  //   const hasListItems = /^[-*]\s+/.test(text);
-
-  // For llms.txt files, we want to process them even if they don't have link patterns
-  // as long as they have list items or link patterns
-  //   if (!isLlmsFile && !hasLinkPatterns) {
-  //     return chunkText(text);
-  //   }
-
-  // For non-llms files that don't have link patterns or list items, use regular chunking
-  //   if (!isLlmsFile && !hasLinkPatterns && !hasListItems) {
-  //     return chunkText(text);
-  //   }
-
   const chunks: string[] = [];
   const lines = text.split("\n");
 

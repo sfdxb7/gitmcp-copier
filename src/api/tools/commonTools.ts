@@ -2,11 +2,13 @@ import type { RepoData } from "../../shared/repoData.js";
 import { fetchFileFromGitHub, searchGitHubRepo } from "../utils/github.js";
 import { formatSearchResults } from "../utils/helpers.js";
 import { fetchFileWithRobotsTxtCheck } from "../utils/robotsTxt.js";
-import { getCachedFilePath, cacheFilePath } from "../utils/upstash.js";
+import { getCachedFilePath, cacheFilePath } from "../utils/cache.js";
 import {
   searchDocumentation,
   storeDocumentationVectors,
+  getRepoNamespace,
 } from "../utils/vectorStore.js";
+import { cacheIsIndexed, getIsIndexedFromCache } from "../utils/cache.js";
 import htmlToMd from "html-to-md";
 
 // Add env parameter to access Cloudflare's bindings
@@ -35,7 +37,10 @@ export async function fetchDocumentation({
     const baseURL = `https://${githubIoDomain}${pathWithSlash}/`;
 
     // Try to fetch llms.txt with robots.txt check
-    const llmsResult = await fetchFileWithRobotsTxtCheck(baseURL + "llms.txt");
+    const llmsResult = await fetchFileWithRobotsTxtCheck(
+      baseURL + "llms.txt",
+      env,
+    );
 
     if (llmsResult.blockedByRobots) {
       blockedByRobots = true;
@@ -48,7 +53,7 @@ export async function fetchDocumentation({
       console.warn(
         `llms.txt not found or not allowed at ${baseURL}, trying base URL`,
       );
-      const indexResult = await fetchFileWithRobotsTxtCheck(baseURL);
+      const indexResult = await fetchFileWithRobotsTxtCheck(baseURL, env);
 
       if (indexResult.blockedByRobots) {
         blockedByRobots = true;
@@ -69,6 +74,7 @@ export async function fetchDocumentation({
       if (!content && !blockedByRobots) {
         const readmeResult = await fetchFileWithRobotsTxtCheck(
           baseURL + "readme.md",
+          env,
         );
 
         if (readmeResult.blockedByRobots) {
@@ -89,13 +95,13 @@ export async function fetchDocumentation({
     }
   } else if (urlType === "github" && owner && repo) {
     // First check if we have a cached path for llms.txt
-    const cachedPath = await getCachedFilePath(owner, repo, "llms.txt");
+    const cachedPath = await getCachedFilePath(owner, repo, env);
     if (cachedPath) {
       content = await fetchFileFromGitHub(
         owner,
         repo,
-        "cachedPath.branch",
-        "cachedPath.path",
+        cachedPath.branch,
+        cachedPath.path,
       );
       if (content) {
         fileUsed =
@@ -149,6 +155,7 @@ export async function fetchDocumentation({
             "llms.txt",
             mainResult.location,
             mainResult.branch,
+            env,
           );
           break;
         }
@@ -189,15 +196,28 @@ export async function fetchDocumentation({
     // Store documentation in vector database for later search
     if (content && owner && repo) {
       try {
-        // Pass the Vectorize binding from env
-        await storeDocumentationVectors(
-          owner,
-          repo,
-          content,
-          fileUsed,
-          env.VECTORIZE,
-        );
-        console.log(`Stored documentation vectors for ${owner}/${repo}`);
+        // First check if vectors exist in KV cache
+        let vectorsExist = await getIsIndexedFromCache(owner, repo, env);
+
+        // Only store vectors if they don't exist yet
+        if (!vectorsExist) {
+          // Pass the Vectorize binding from env
+          await storeDocumentationVectors(
+            owner,
+            repo,
+            content,
+            fileUsed,
+            env.VECTORIZE,
+          );
+
+          // Update the cache to indicate vectors now exist
+          await cacheIsIndexed(owner, repo, true, env);
+          console.log(`Stored documentation vectors for ${owner}/${repo}`);
+        } else {
+          console.log(
+            `Documentation vectors already exist for ${owner}/${repo}, skipping indexing`,
+          );
+        }
       } catch (error) {
         console.error(`Failed to store documentation vectors: ${error}`);
         // Continue despite vector storage failure
@@ -259,6 +279,11 @@ export async function searchRepositoryDocumentation({
       env.VECTORIZE,
     );
 
+    console.log(
+      `Initial search found ${results.length} results for "${query}"`,
+      results,
+    );
+
     // If no results or forceReindex is true, we need to index the documentation
     if (results.length === 0 || forceReindex) {
       console.log(
@@ -266,7 +291,10 @@ export async function searchRepositoryDocumentation({
           forceReindex ? "Force reindexing" : "No search results found"
         } for in ${owner}/${repo}, fetching documentation first`,
       );
+
       isFirstSearch = true;
+
+      await cacheIsIndexed(owner, repo, false, env);
 
       // Fetch the documentation - pass env
       const docResult = await fetchDocumentation({ repoData, env });
@@ -280,9 +308,6 @@ export async function searchRepositoryDocumentation({
       // Only search if we found content
       if (content && owner && repo && content !== "No documentation found.") {
         try {
-          // Wait a short time to ensure indexing is complete
-          await new Promise((resolve) => setTimeout(resolve, 1000));
-
           // Search again after indexing - pass the Vectorize binding
           results = await searchDocumentation(
             owner,
