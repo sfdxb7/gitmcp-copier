@@ -123,7 +123,7 @@ function generateSearchToolDescription({
       "Semantically search within the fetched documentation for the current repository.";
 
     if (urlType == "subdomain") {
-      description = `Semantically search within the fetched documentation from the ${owner}/${repo} GitHub Pages. Useful for specific queries. Don't call if you already used fetch_documentation.`;
+      description = `Semantically search within the fetched documentation from the ${owner}/${repo} GitHub Pages. Useful for specific queries. Don't call if you already used search_documentation.`;
     } else if (urlType == "github") {
       description = `Semantically search within the fetched documentation from GitHub repository: ${owner}/${repo}. Useful for specific queries. Don't call if you already used fetch_documentation.`;
     }
