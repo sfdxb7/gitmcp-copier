@@ -19,7 +19,7 @@ export default function Home() {
       {/* Hero Section */}
       <div className="relative overflow-hidden">
         <div className="absolute inset-0 bg-grid-gray-800 [mask-image:linear-gradient(0deg,rgba(17,24,39,0.7),rgba(17,24,39,0.5))] bg-[length:20px_20px]"></div>
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-16 sm:pb-6">
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 sm:pb-6">
           <div className="text-center">
             <div className="flex justify-center">
               <img
@@ -78,7 +78,7 @@ export default function Home() {
               <div className="flex items-center w-full my-4">
                 <div className="h-0.5 flex-1 bg-gradient-to-r from-transparent to-gray-700"></div>
                 <div className="px-4 py-1 bg-gray-800 text-gray-400 text-sm rounded-full border border-gray-700">
-                  And the best part
+                  Oh, one more thing!
                 </div>
                 <div className="h-0.5 flex-1 bg-gradient-to-l from-transparent to-gray-700"></div>
               </div>
