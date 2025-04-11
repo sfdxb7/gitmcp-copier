@@ -22,7 +22,7 @@ export async function fetchDocumentation({
   fileUsed: string;
   content: { type: "text"; text: string }[];
 }> {
-  const { owner, repo, host, urlType } = repoData;
+  const { owner, repo, urlType } = repoData;
 
   // Initialize fileUsed to prevent "used before assigned" error
   let fileUsed = "unknown";
