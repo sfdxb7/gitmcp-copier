@@ -1,6 +1,83 @@
-import { Github, Code, Globe, Zap } from "lucide-react";
+import {
+  Github,
+  Code,
+  Globe,
+  Zap,
+  ArrowRight,
+  ExternalLink,
+} from "lucide-react";
+import { useState, type FormEvent, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 
 export default function Home() {
+  const [url, setUrl] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const navigate = useNavigate();
+
+  const handleSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    setError(null);
+
+    // Basic URL validation
+    let processedUrl = url.trim();
+    if (!processedUrl) {
+      setError("Please use a valid GitHub URL");
+      return;
+    }
+
+    // Add https:// if not present
+    if (!/^https?:\/\//i.test(processedUrl)) {
+      processedUrl = `https://${processedUrl}`;
+    }
+
+    let targetUrl: string | null = null;
+
+    try {
+      const urlObj = new URL(processedUrl);
+      const hostname = urlObj.hostname;
+      const pathname = urlObj.pathname.replace(/^\/+|\/+$/g, "");
+
+      // Case 1: GitHub repository URL (github.com/owner/repo)
+      if (hostname === "github.com") {
+        const parts = pathname.split("/");
+        if (parts.length >= 2) {
+          const owner = parts[0];
+          const repo = parts[1];
+          if (owner && repo) {
+            targetUrl = `https://gitmcp.io/${owner}/${repo}`;
+          }
+        }
+      }
+      // Case 2: GitHub Pages URL (owner.github.io/repo)
+      else if (hostname.endsWith(".github.io")) {
+        const owner = hostname.replace(".github.io", "");
+        if (owner && pathname) {
+          const repo = pathname.split("/")[0];
+          if (repo) {
+            targetUrl = `https://${owner}.gitmcp.io/${repo}`;
+          }
+        }
+      }
+
+      if (!targetUrl) {
+        setError(
+          "Invalid GitHub URL format. Please use github.com/owner/repo or owner.github.io/repo",
+        );
+        return;
+      }
+
+      // Open the GitMCP URL in a new tab
+      window.open(targetUrl, "_blank", "noopener,noreferrer");
+    } catch (err) {
+      setError("Please enter a valid URL");
+    }
+  };
+
+  const handleTryExample = () => {
+    setUrl("github.com/langchain-ai/langgraph");
+    setError(null);
+  };
+
   return (
     <div className="min-h-screen bg-gray-900 text-gray-100">
       {/* GitHub Link */}
@@ -19,24 +96,26 @@ export default function Home() {
       {/* Hero Section */}
       <div className="relative overflow-hidden">
         <div className="absolute inset-0 bg-grid-gray-800 [mask-image:linear-gradient(0deg,rgba(17,24,39,0.7),rgba(17,24,39,0.5))] bg-[length:20px_20px]"></div>
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 sm:pb-6">
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 sm:py-8 sm:pb-6">
           <div className="text-center">
             <div className="flex justify-center">
               <img
                 src="/img/icon_cropped.png"
                 alt="GitMCP Logo"
-                className="h-auto w-56 sm:w-80"
+                className="h-auto w-48 sm:w-64 mt-6"
               />
             </div>
-            <h1 className="max-w-4xl mx-auto text-4xl sm:text-5xl md:text-[72px] font-bold tracking-tight my-6 bg-gradient-to-r from-blue-500 via-emerald-400 to-purple-500 text-gradient animate-gradient-x">
+            <h1 className="max-w-4xl mx-auto text-4xl sm:text-5xl md:text-[72px] font-bold tracking-tight my-6 mb-2 text-white">
+              {/* <h1 className="max-w-4xl mx-auto text-4xl sm:text-5xl md:text-[72px] font-bold tracking-tight my-6 mb-0 bg-gradient-to-r from-blue-500 via-emerald-400 to-purple-500 text-gradient animate-gradient-x"> */}
               GitMCP
             </h1>
+            <Carousel />
             <p className="max-w-3xl mx-auto text-lg sm:text-xl md:text-3xl font-light tracking-tight text-gray-300/90 leading-relaxed">
               Instantly create a{" "}
               <span className="text-emerald-400 font-medium">
                 Remote MCP server
               </span>{" "}
-              for any GitHub project
+              for any GitHub repository
             </p>
           </div>
         </div>
@@ -48,52 +127,64 @@ export default function Home() {
           <div className="text-center mb-8 sm:mb-16">
             <div className="mt-0 max-w-3xl mx-auto sm:mt-6">
               <div className="bg-gray-800 border border-gray-700 rounded-lg p-3 sm:p-4 mb-3">
-                <div className="flex flex-col sm:flex-row items-center pb-3">
-                  <div className="flex-1 flex items-center justify-center sm:justify-end text-gray-300 text-sm sm:text-lg font-mono px-2 sm:px-4 mb-2 sm:mb-0">
-                    github.com/username/repo
+                <Example
+                  from="github.com/username/repo"
+                  to="gitmcp.io/username/repo"
+                  bold="gitmcp.io"
+                />
+                <Divider simple />
+                <Example
+                  from="username.github.io/repo"
+                  to="username.gitmcp.io/repo"
+                  bold="gitmcp.io"
+                />
+                <Divider simple />
+                <Example
+                  from="any GitHub repository"
+                  to="gitmcp.io/docs"
+                  bold={["gitmcp.io", "any"]}
+                />
+              </div>
+              <Divider text="or use this to convert any GitHub URL" />
+              <div className="bg-gray-800 border border-gray-700 rounded-lg p-3 sm:p-4 mb-8">
+                <form onSubmit={handleSubmit} className="mb-3 mx-12">
+                  <div className="flex rounded-md shadow-sm">
+                    <div className="relative flex-1">
+                      <input
+                        type="text"
+                        name="github-url"
+                        id="github-url"
+                        className="w-full bg-gray-700 border border-gray-600 rounded-md py-2 pl-3 pr-28 text-base text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                        placeholder="Example: github.com/langchain-ai/langgraph"
+                        value={url}
+                        onChange={(e) => setUrl(e.target.value)}
+                      />
+                      <button
+                        type="button"
+                        onClick={handleTryExample}
+                        className="absolute right-2 top-1/2 transform -translate-y-1/2 px-3 py-1 bg-gray-600 hover:bg-gray-500 text-xs text-gray-200 rounded-md transition-colors duration-200"
+                      >
+                        Try Example
+                      </button>
+                    </div>
+                    <button
+                      type="submit"
+                      className="ml-3 inline-flex items-center px-4 py-2 border border-transparent text-base font-bold font-mono rounded-md shadow-sm text-gray-900 bg-emerald-400 from-emerald-400 to-emerald-500 hover:from-emerald-400 hover:via-cyan-500/20 hover:to-emerald-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500"
+                    >
+                      <span className="text-gray-800">To MCP!</span>
+                    </button>
                   </div>
-                  <div className="mx-2 sm:mx-4 text-gray-500 transform rotate-90 sm:rotate-0">
-                    →
-                  </div>
-                  <div className="flex-1 flex items-center justify-center sm:justify-start text-emerald-400 text-sm sm:text-lg font-mono px-2 sm:px-4">
-                    <b>gitmcp.io</b>/username/repo
-                  </div>
-                </div>
-                <div className="flex justify-center py-1">
-                  <div className="w-48 h-px bg-gray-700/70"></div>
-                </div>
-                <div className="flex flex-col sm:flex-row items-center pt-3">
-                  <div className="flex-1 flex items-center justify-center sm:justify-end text-gray-300 text-sm sm:text-lg font-mono px-2 sm:px-4 mb-2 sm:mb-0">
-                    username.github.io/repo
-                  </div>
-                  <div className="mx-2 sm:mx-4 text-gray-500 transform rotate-90 sm:rotate-0">
-                    →
-                  </div>
-                  <div className="flex-1 flex items-center justify-center sm:justify-start text-emerald-400 text-sm sm:text-lg font-mono px-2 sm:px-4">
-                    username.<b>gitmcp.io</b>/repo
-                  </div>
-                </div>
+                  {error && (
+                    <p
+                      className="mt-2 text-sm text-red-400"
+                      id="github-url-error"
+                    >
+                      {error}
+                    </p>
+                  )}
+                </form>
               </div>
 
-              <div className="flex items-center w-full my-4">
-                <div className="h-0.5 flex-1 bg-gradient-to-r from-transparent to-gray-700"></div>
-                <div className="px-4 py-1 bg-gray-800 text-gray-400 text-sm rounded-full border border-gray-700">
-                  Oh, one more thing!
-                </div>
-                <div className="h-0.5 flex-1 bg-gradient-to-l from-transparent to-gray-700"></div>
-              </div>
-
-              <div className="bg-gray-800 border border-gray-700 rounded-lg p-3 sm:p-4 mb-6 sm:mb-8 flex flex-col sm:flex-row items-center">
-                <div className="flex-1 flex items-center justify-center sm:justify-end text-gray-300 text-sm sm:text-lg font-mono px-2 sm:px-4 mb-2 sm:mb-0">
-                  <b>any</b>&nbsp;GitHub repository
-                </div>
-                <div className="mx-2 sm:mx-4 text-gray-500 transform rotate-90 sm:rotate-0">
-                  →
-                </div>
-                <div className="flex-1 flex items-center justify-center sm:justify-start text-emerald-400 text-sm sm:text-lg font-mono px-2 sm:px-4">
-                  <b>gitmcp.io/docs</b>
-                </div>
-              </div>
               <p className="text-base sm:text-xl text-gray-300 max-w-3xl mx-auto font-light px-2">
                 Simply change the domain from{" "}
                 <span className="text-gray-200 font-medium">github.com</span> or{" "}
@@ -358,7 +449,7 @@ export default function Home() {
               >
                 <div className="w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-br from-gray-700 to-gray-800 rounded-xl shadow-lg flex items-center justify-center mb-3 group-hover:from-gray-650 group-hover:to-gray-750 transition-all">
                   <img
-                    src="https://cline.bot/assets/icons/favicon-32x32.png"
+                    src="https://cline.bot/assets/icons/favicon-256x256.png"
                     alt="Cline"
                     className="h-8 w-8 sm:h-10 sm:w-10"
                   />
@@ -373,7 +464,7 @@ export default function Home() {
       </section>
 
       {/* Footer */}
-      <footer className="bg-gray-950 text-gray-400 py-8 sm:py-12">
+      <footer className="bg-gray-950 text-gray-400 py-4 sm:py-6">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col md:flex-row justify-between items-center">
             <div className="mb-6 md:mb-0">
@@ -388,6 +479,128 @@ export default function Home() {
           </div>
         </div>
       </footer>
+    </div>
+  );
+}
+
+function Example({
+  from,
+  to,
+  bold,
+}: {
+  from: string;
+  to: string;
+  bold: string | string[];
+}) {
+  const withBold = (text: string) => {
+    let result = text;
+    const boldArray = Array.isArray(bold) ? bold : [bold];
+    boldArray.forEach((b) => {
+      result = result.replace(b, `<b>${b}</b>`);
+    });
+    return result;
+  };
+  return (
+    <div className="flex flex-col sm:flex-row items-center pb-3 pt-2">
+      <div className="flex-1 flex items-center justify-center sm:justify-end text-gray-300 text-sm sm:text-lg font-mono px-2 sm:px-4 mb-2 sm:mb-0">
+        <span dangerouslySetInnerHTML={{ __html: withBold(from) }} />
+      </div>
+      <div className="mx-2 sm:mx-4 text-gray-500 transform rotate-90 sm:rotate-0">
+        →
+      </div>
+      <div className="flex-1 flex items-center justify-center sm:justify-start text-emerald-400 text-sm sm:text-lg font-mono px-2 sm:px-4">
+        <span dangerouslySetInnerHTML={{ __html: withBold(to) }} />
+      </div>
+    </div>
+  );
+}
+
+function Divider({ text, simple }: { text?: string; simple?: boolean }) {
+  if (simple) {
+    return (
+      <div className="flex justify-center py-1">
+        <div className="w-48 h-px bg-gray-700/70"></div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center w-full my-4">
+      <div className="h-0.5 flex-1 bg-gradient-to-r from-transparent to-gray-700"></div>
+      {text && (
+        <div className="px-4 py-1 bg-gray-800 text-gray-400 text-sm rounded-full border border-gray-700">
+          {text}
+        </div>
+      )}
+      <div className="h-0.5 flex-1 bg-gradient-to-l from-transparent to-gray-700"></div>
+    </div>
+  );
+}
+
+function Carousel() {
+  const [currentSlide, setCurrentSlide] = useState(0);
+  const slides = [
+    {
+      text: "Remote documentation server",
+      icon: (
+        <Globe className="mr-2 sm:mr-3 h-6 w-6 sm:h-7 sm:w-7 md:h-8 md:w-8 text-blue-400" />
+      ),
+    },
+    {
+      text: "Connect your IDE to the world",
+      icon: (
+        <Code className="mr-2 sm:mr-3 h-6 w-6 sm:h-7 sm:w-7 md:h-8 md:w-8 text-purple-400" />
+      ),
+    },
+    {
+      text: "Prevent AI code hallucinations",
+      icon: (
+        <Zap className="mr-2 sm:mr-3 h-6 w-6 sm:h-7 sm:w-7 md:h-8 md:w-8 text-emerald-400" />
+      ),
+    },
+  ];
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentSlide((prev) => (prev + 1) % slides.length);
+    }, 8000);
+
+    return () => clearInterval(interval);
+  }, [slides.length]);
+
+  const getSlideClass = (index: number) => {
+    // Current slide
+    if (index === currentSlide) {
+      return "opacity-100 z-10";
+    }
+
+    // All other slides - simple opacity change for cross-fade
+    return "opacity-0 z-0";
+  };
+
+  return (
+    <div className="relative my-4 mt-0 h-[70px] sm:h-[80px] md:h-[100px] mx-auto max-w-4xl">
+      <div className="overflow-hidden h-full relative ">
+        {slides.map((slide, index) => (
+          <div
+            key={index}
+            className={`absolute w-full h-full flex items-center justify-center transition-opacity duration-2000 ease-in-out ${getSlideClass(index)}`}
+          >
+            <div className="flex items-center justify-center">
+              {/* <div
+                className={`transition-all duration-2000 ${
+                  index === currentSlide ? "opacity-100" : "opacity-0"
+                }`}
+              >
+                {slide.icon}
+              </div> */}
+              <h3 className="text-2xl sm:text-3xl md:text-[48px] font-bold tracking-tight bg-gradient-to-r from-blue-500 via-emerald-400 to-purple-500 text-gradient animate-gradient-x px-4 text-center">
+                {slide.text}
+              </h3>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
