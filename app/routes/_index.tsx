@@ -1,18 +1,10 @@
-import {
-  Github,
-  Code,
-  Globe,
-  Zap,
-  ArrowRight,
-  ExternalLink,
-} from "lucide-react";
+import { Github, Code, Globe, Zap } from "lucide-react";
 import { useState, type FormEvent, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import Typewriter from "typewriter-effect";
 
 export default function Home() {
   const [url, setUrl] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const navigate = useNavigate();
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -96,7 +88,7 @@ export default function Home() {
       {/* Hero Section */}
       <div className="relative overflow-hidden">
         <div className="absolute inset-0 bg-grid-gray-800 [mask-image:linear-gradient(0deg,rgba(17,24,39,0.7),rgba(17,24,39,0.5))] bg-[length:20px_20px]"></div>
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 sm:py-8 sm:pb-6">
+        <div className="relative max-w-7xl mx-auto px-4 pb-2 sm:px-6 lg:px-8">
           <div className="text-center">
             <div className="flex justify-center">
               <img
@@ -106,17 +98,54 @@ export default function Home() {
               />
             </div>
             <h1 className="max-w-4xl mx-auto text-4xl sm:text-5xl md:text-[72px] font-bold tracking-tight my-6 mb-2 text-white">
-              {/* <h1 className="max-w-4xl mx-auto text-4xl sm:text-5xl md:text-[72px] font-bold tracking-tight my-6 mb-0 bg-gradient-to-r from-blue-500 via-emerald-400 to-purple-500 text-gradient animate-gradient-x"> */}
               GitMCP
             </h1>
-            <Carousel />
-            <p className="max-w-3xl mx-auto text-lg sm:text-xl md:text-3xl font-light tracking-tight text-gray-300/90 leading-relaxed">
-              Instantly create a{" "}
-              <span className="text-emerald-400 font-medium">
-                Remote MCP server
-              </span>{" "}
-              for any GitHub repository
-            </p>
+            <div className="flex flex-wrap text-center justify-center items-center">
+              <div className="flex flex-wrap justify-center whitespace-pre text-2xl sm:text-3xl md:text-[48px] tracking-tight bg-gradient-to-r from-blue-500 via-emerald-400 to-purple-500 text-gradient animate-gradient-x text-center">
+                <span className="font-bold">Code with</span>
+                <Typewriter
+                  options={{
+                    strings: [
+                      " confidence",
+                      "out hallucinations",
+                      " any GitHub project",
+                      " MCP documentation",
+                    ],
+                    autoStart: true,
+                    loop: true,
+                    delay: 40,
+                    deleteSpeed: 15,
+                    pauseFor: 4500,
+                    wrapperClassName: "font-extrabold",
+                    cursor: "",
+                  }}
+                />
+              </div>
+              <span
+                style={{
+                  color: "white",
+                  animation: "typewriterCursor 1s infinite",
+                  fontSize: "42px",
+                  lineHeight: "1.33",
+                }}
+              >
+                |
+              </span>
+            </div>
+
+            <style jsx="true" global="true">{`
+              @keyframes typewriterCursor {
+                0% {
+                  opacity: 0;
+                }
+                50% {
+                  opacity: 1;
+                }
+                100% {
+                  opacity: 0;
+                }
+              }
+            `}</style>
           </div>
         </div>
       </div>
@@ -145,8 +174,9 @@ export default function Home() {
                   bold={["gitmcp.io", "any"]}
                 />
               </div>
-              <Divider text="or use this to convert any GitHub URL" />
-              <div className="bg-gray-800 border border-gray-700 rounded-lg p-3 sm:p-4 mb-8">
+
+              <Divider text="or try the instant GitHub URL converter" />
+              <div className="bg-gray-800 border border-gray-700 rounded-lg p-3 sm:p-2 sm:pt-2  mb-8">
                 <form onSubmit={handleSubmit} className="mb-3 mx-12">
                   <div className="flex rounded-md shadow-sm">
                     <div className="relative flex-1">
@@ -169,7 +199,7 @@ export default function Home() {
                     </div>
                     <button
                       type="submit"
-                      className="ml-3 inline-flex items-center px-4 py-2 border border-transparent text-base font-bold font-mono rounded-md shadow-sm text-gray-900 bg-emerald-400 from-emerald-400 to-emerald-500 hover:from-emerald-400 hover:via-cyan-500/20 hover:to-emerald-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500"
+                      className="ml-3 inline-flex items-center px-4 py-2 border border-transparent text-base font-bold font-mono rounded-md shadow-sm text-gray-900 bg-emerald-400 hover:bg-emerald-500 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500"
                     >
                       <span className="text-gray-800">To MCP!</span>
                     </button>
@@ -184,8 +214,14 @@ export default function Home() {
                   )}
                 </form>
               </div>
-
-              <p className="text-base sm:text-xl text-gray-300 max-w-3xl mx-auto font-light px-2">
+              <p className="max-w-3xl mx-auto text-lg sm:text-xl md:text-3xl font-light tracking-tight text-gray-300/90 leading-relaxed">
+                Instantly create a{" "}
+                <span className="text-emerald-400 font-medium">
+                  Remote MCP server
+                </span>{" "}
+                for any GitHub repository
+              </p>
+              <p className="text-base pt-0 sm:text-xl text-gray-300 max-w-3xl mx-auto font-light px-2">
                 Simply change the domain from{" "}
                 <span className="text-gray-200 font-medium">github.com</span> or{" "}
                 <span className="text-gray-200 font-medium">github.io</span> to{" "}
