@@ -3,15 +3,15 @@
 <img width="1092" alt="image" src="https://github.com/user-attachments/assets/087883c3-99e9-4c47-af49-07d02769bddd" />
 
 <p align="center">
-  <a href="#what-is-gitmcp">What is GitMCP</a> •
-  <a href="#features">Features</a> •
-  <a href="#getting-started">Getting Started</a> •
-  <a href="#how-it-works">How It Works</a> •
-  <a href="#examples">Examples</a> •
-  <a href="#faq">FAQ</a> •
-  <a href="#privacy">Privacy</a> •
-  <a href="#contributing">Contributing</a> •
-  <a href="#license">License</a>
+  <a href="#-what-is-gitmcp">What is GitMCP</a> •
+  <a href="#-features">Features</a> •
+  <a href="#-getting-started">Getting Started</a> •
+  <a href="#-how-it-works">How It Works</a> •
+  <a href="#-examples">Examples</a> •
+  <a href="#-faq">FAQ</a> •
+  <a href="#-privacy">Privacy</a> •
+  <a href="#-contributing">Contributing</a> •
+  <a href="#-license">License</a>
 </p>
 <div align="center">
 
@@ -24,12 +24,10 @@
 </div>
 
 
-
 ## 🤔 What is GitMCP?
 **Stop vibe-hallucinating and start vibe-coding!**
 
-[GitMCP](https://gitmcp.io) is a free, open-source, remote [Model Context Protocol (MCP)](https://docs.anthropic.com/en/docs/agents-and-tools/mcp) server that transforms **any** GitHub project (repositories or GitHub pages) into a documentation hub. It allows AI tools like Cursor to access up-to-date documentation and code, ending hallucinations seamlessly.
-
+[GitMCP](https://gitmcp.io) is a free, open-source, remote [Model Context Protocol (MCP)](https://docs.anthropic.com/en/docs/agents-and-tools/mcp) server that transforms **any** GitHub project (repositories or GitHub pages) into a documentation hub. It allows AI tools like Cursor to access up-to-date documentation and code, ending code hallucinations seamlessly.
 
 ## ✨ Features
 
@@ -42,7 +40,7 @@
 
 ## 🚀 Getting Started
 
-Using GitMCP is as easy as it gets! Just follow these steps:
+Using GitMCP is easy! Simply follow these steps:
 
 ### Step 1: Choose the type of server you want
 
@@ -50,11 +48,12 @@ Choose one of these URL formats depending on what you want to connect to:
 
 - For GitHub repositories: `gitmcp.io/{owner}/{repo}` 
 - For GitHub Pages sites: `{owner}.gitmcp.io/{repo}`
-- For any repository (dynamic): `gitmcp.io/docs`
+- For a generic tool that supports any repository (dynamic): `gitmcp.io/docs`
 
 Replace `{owner}` with the GitHub username or organization name, and `{repo}` with the repository name.
 
 For your convenience, you can also use the conversion tool on the landing page to format the GitHub URL into an MCP URL!
+
 ### Step 2: Connect your AI assistant
 
 Select your AI assistant from the options below and follow the configuration instructions:
@@ -146,6 +145,13 @@ What happens when you use GitMCP:
 4. **GitMCP executes the AI's request** and returns the requested data.
 5. **Your AI receives the information** and generates a more accurate, grounded response without hallucinations.
 
+### Supported Documentation
+
+GitMCP currently supports the following documents (in order of priority):
+1. [llms.txt](https://llmstxt.org)
+2. AI-optimized version of the project's documentation
+3. `README.md`/root
+
 ## 💡 Examples
 
 Here are some examples of how to use GitMCP with different AI assistants and repositories:
@@ -233,7 +239,7 @@ GitMCP only accesses content that is already publicly available and only when qu
 
 ## 👥 Contributing
 
-We welcome contributions! Please take a look at our [contribution](https://github.com/idosal/git-mcp/blob/main/.github/CONTRIBUTING.md) guidelines.
+We welcome contributions, feedback, and ideas! Please review our [contribution](https://github.com/idosal/git-mcp/blob/main/.github/CONTRIBUTING.md) guidelines.
 
 ### Local Development Setup
 
@@ -245,8 +251,6 @@ We welcome contributions! Please take a look at our [contribution](https://githu
 
 2. **Install dependencies**
    ```bash
-   npm install
-   # or if you prefer pnpm
    pnpm install
    ```
 
@@ -264,9 +268,9 @@ We welcome contributions! Please take a look at our [contribution](https://githu
    npx @modelcontextprotocol/inspector
    ```
 
-2. In the inspector interface (http://localhost:5173):
+2. In the inspector interface:
    - Set Transport Type to `SSE`
-   - Enter your GitMCP URL (e.g., `http://localhost:8787/docs`)
+   - Enter your GitMCP URL (e.g., `http://localhost:5173/docs`)
    - Click "Connect"
 
 ## 📄 License
