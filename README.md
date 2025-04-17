@@ -60,7 +60,7 @@ Select your AI assistant from the options below and follow the configuration ins
 
 #### Connecting Cursor
 
-1. Update your Cursor configuration file at `~/.cursor/mcp.json`:
+Update your Cursor configuration file at `~/.cursor/mcp.json`:
    ```json
    {
      "mcpServers": {
@@ -91,7 +91,7 @@ Select your AI assistant from the options below and follow the configuration ins
 
 #### Connecting Windsurf
 
-1. Update your Windsurf configuration file at `~/.codeium/windsurf/mcp_config.json`:
+Update your Windsurf configuration file at `~/.codeium/windsurf/mcp_config.json`:
    ```json
    {
      "mcpServers": {
@@ -104,7 +104,7 @@ Select your AI assistant from the options below and follow the configuration ins
 
 #### Connecting VSCode
 
-1. Update your VSCode configuration file at `.vscode/mcp.json`:
+Update your VSCode configuration file at `.vscode/mcp.json`:
    ```json
    {
      "servers": {
@@ -118,7 +118,7 @@ Select your AI assistant from the options below and follow the configuration ins
 
 #### Connecting Cline
 
-1. Update your Cline configuration file at `~/Library/Application Support/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json`:
+Update your Cline configuration file at `~/Library/Application Support/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json`:
    ```json
    {
      "mcpServers": {
@@ -130,6 +130,18 @@ Select your AI assistant from the options below and follow the configuration ins
      }
    }
    ```
+
+#### Connecting Highlight AI
+
+1. Open Highlight AI and click the plugins icon (@ symbol) in the sidebar
+2. Click **Installed Plugins** at the top of the sidebar
+3. Select **Custom Plugin**
+4. Click **Add a plugin using a custom SSE URL**
+
+Plugin name: `gitmcp`
+SSE URL: `https://gitmcp.io/{owner}/{repo}`
+
+For more details on adding custom MCP servers to HighlightAI, refer to [the documentation](https://docs.highlightai.com/learn/developers/plugins/custom-plugins-setup).
 
 > **Note:** Remember to replace `{owner}` and `{repo}` with the actual GitHub username/organization and repository name. You can also use the dynamic endpoint `https://gitmcp.io/docs` to allow your AI to access any repository on demand.
 
