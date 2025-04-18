@@ -26,7 +26,7 @@ export async function fetchDocumentation({
   initiatedFromSearch = false,
 }: {
   repoData: RepoData;
-  env: any;
+  env: Env;
   ctx: any;
   initiatedFromSearch?: boolean;
 }): Promise<{
@@ -124,7 +124,7 @@ export async function fetchDocumentation({
 
     // If no cached path or cached path failed, try static paths
     if (!content) {
-      docsBranch = await getRepoBranch(owner, repo);
+      docsBranch = await getRepoBranch(owner, repo, env);
 
       console.log(`No cached path for ${owner}/${repo}, trying static paths`);
       const possibleLocations = [
@@ -199,20 +199,10 @@ export async function fetchDocumentation({
         }
       }
     }
-    // only in case of search, try to fetch pre-generated llms-full.txt
-    if (!content && initiatedFromSearch) {
-      // Try to fetch pre-generated llms-full.txt
-      content =
-        (await fetchFileFromR2(owner, repo, "llms-full.txt", env)) ?? null;
-      if (content) {
-        console.log(`Fetched pre-generated llms-full.txt for ${owner}/${repo}`);
-        fileUsed = "llms-full.txt (generated)";
-      }
-    }
+
     if (!content) {
       // Try to fetch pre-generated llms.txt
-      content =
-        (await fetchFileFromR2(owner, repo, "docs/llms.txt", env)) ?? null;
+      content = (await fetchFileFromR2(owner, repo, "llms.txt")) ?? null;
       if (content) {
         console.log(`Fetched pre-generated llms.txt for ${owner}/${repo}`);
         fileUsed = "llms.txt (generated)";
@@ -280,7 +270,7 @@ async function indexDocumentation(
   fileUsed: string,
   docsPath: string,
   docsBranch: string,
-  env: any,
+  env: Env,
 ) {
   // try {
   //   if (env.MY_QUEUE) {
@@ -336,44 +326,113 @@ async function indexDocumentation(
   }
 }
 
+export async function searchRepositoryDocumentation({
+  repoData,
+  query,
+  env,
+  ctx,
+  fallbackSearch = searchRepositoryDocumentationNaive,
+}: {
+  repoData: RepoData;
+  query: string;
+  env: Env;
+  ctx: any;
+  fallbackSearch?: typeof searchRepositoryDocumentationNaive;
+}): Promise<{
+  searchQuery: string;
+  content: { type: "text"; text: string }[];
+}> {
+  if (!env.DOCS_BUCKET) {
+    throw new Error("DOCS_BUCKET is not available in environment");
+  }
+  const docsInR2 = !!(await env.DOCS_BUCKET.head(
+    `${repoData.owner}/${repoData.repo}/llms.txt`,
+  ));
+  if (docsInR2) {
+    const autoragResult = await searchRepositoryDocumentationAutoRag({
+      repoData,
+      query,
+      env,
+      ctx,
+      autoragPipeline: "docs-rag",
+    });
+    if (
+      autoragResult?.content[0]?.text?.includes("No results found") === false
+    ) {
+      console.log("Found results in AutoRAG", autoragResult);
+      return autoragResult;
+    }
+  }
+
+  console.log("No results in AutoRAG, falling back to naive search");
+  return await fallbackSearch({
+    repoData,
+    query,
+    env,
+    ctx,
+  });
+}
+
 export async function searchRepositoryDocumentationAutoRag({
   repoData,
   query,
   env,
   ctx,
-  autoragPipeline,
+  autoragPipeline = "docs-rag",
 }: {
   repoData: RepoData;
   query: string;
-  env: any;
+  env: Env;
   ctx: any;
   autoragPipeline: string;
 }): Promise<{
   searchQuery: string;
   content: { type: "text"; text: string }[];
 }> {
-  console.log("got here", repoData, query);
-  const answer = await env.AI.autorag(autoragPipeline).aiSearch({
+  if (!repoData.owner || !repoData.repo) {
+    return {
+      searchQuery: query,
+      content: [{ type: "text", text: "No repository data provided" }],
+    };
+  }
+
+  const answer = await env.AI.autorag(autoragPipeline).search({
     query: query,
     rewrite_query: true,
-    max_num_results: 5,
+    max_num_results: 10,
     ranking_options: {
-      score_threshold: 0.6,
+      score_threshold: 0.5,
+    },
+    filters: {
+      type: "gte",
+      key: "folder",
+      value: `${repoData.owner}/${repoData.repo}/`,
     },
   });
 
-  console.log(answer);
+  // console.log(answer);
 
   let responseText =
-    `## Query\n\nOriginal: ${query}.\n\ns## Answer\n\n${answer.response}\n\n` ||
+    `## Query\n\n${query}.\n\n## Response\n\n` ||
     `No results found for: "${query}"`;
 
   // Add source data if available
   if (answer.data && answer.data.length > 0) {
     responseText += "\n\n### Sources:\n";
+    const defaultBranch = await getRepoBranch(
+      repoData.owner,
+      repoData.repo,
+      env,
+    );
 
     for (const item of answer.data) {
-      responseText += `\n#### ${item.filename || "Unnamed Source"} (Score: ${item.score.toFixed(2)})\n`;
+      const rawGithubUrl = constructGithubUrl(
+        repoData.owner,
+        repoData.repo,
+        defaultBranch,
+        item.filename.replace(`${repoData.owner}/${repoData.repo}/`, ""),
+      );
+      responseText += `\n#### (${item.filename})[${rawGithubUrl}] (Score: ${item.score.toFixed(2)})\n`;
 
       if (item.content && item.content.length > 0) {
         for (const content of item.content) {
@@ -383,6 +442,8 @@ export async function searchRepositoryDocumentationAutoRag({
         }
       }
     }
+  } else {
+    responseText = `No results found for: "${query}"`;
   }
 
   return {
@@ -400,7 +461,7 @@ export async function searchRepositoryDocumentationAutoRag({
  * Search documentation using vector search
  * Will fetch and index documentation if none exists
  */
-export async function searchRepositoryDocumentation({
+export async function searchRepositoryDocumentationNaive({
   repoData,
   query,
   forceReindex = false,
@@ -410,7 +471,7 @@ export async function searchRepositoryDocumentation({
   repoData: RepoData;
   query: string;
   forceReindex?: boolean;
-  env: any;
+  env: Env;
   ctx: any;
 }): Promise<{
   searchQuery: string;
@@ -568,7 +629,7 @@ export async function searchRepositoryCode({
   repoData: RepoData;
   query: string;
   page?: number;
-  env: any;
+  env: Env;
 }): Promise<{
   searchQuery: string;
   content: { type: "text"; text: string }[];
@@ -690,7 +751,7 @@ export async function searchRepositoryCode({
   }
 }
 
-export async function fetchUrlContent({ url, env }: { url: string; env: any }) {
+export async function fetchUrlContent({ url, env }: { url: string; env: Env }) {
   try {
     // Use the robotsTxt checking function to respect robots.txt rules
     const result = await fetchFileWithRobotsTxtCheck(url, env);
