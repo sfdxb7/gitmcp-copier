@@ -5,8 +5,8 @@ import {
   fetchDocumentation,
   searchRepositoryDocumentation,
   searchRepositoryCode,
-  fetchUrlContent,
 } from "../commonTools.js";
+import { incrementRepoViewCount } from "../../utils/badge.js";
 
 class GenericRepoHandler implements RepoHandler {
   name = "generic";
@@ -48,6 +48,17 @@ class GenericRepoHandler implements RepoHandler {
               ],
             };
           }
+
+          ctx.waitUntil(
+            incrementRepoViewCount(
+              env as CloudflareEnvironment,
+              repo.split("/")[0],
+              repo?.split("/")[1],
+            ).catch((err) => {
+              console.error("Error incrementing repo view count:", err);
+            }),
+          );
+
           return {
             content: [
               {
@@ -108,7 +119,7 @@ class GenericRepoHandler implements RepoHandler {
       {
         name: "search_generic_code",
         description:
-          "Search for code in any GitHub repository by providing owner, project name, and search query. Returns matching files and code snippets. Supports pagination with 30 results per page.",
+          "Search for code in any GitHub repository by providing owner, project name, and search query. Returns matching files. Supports pagination with 30 results per page.",
         paramsSchema: {
           owner: z
             .string()
@@ -131,7 +142,7 @@ class GenericRepoHandler implements RepoHandler {
             urlType: "github",
             host: "gitmcp.io",
           };
-          return searchRepositoryCode({ repoData, query, page, env });
+          return searchRepositoryCode({ repoData, query, page, env, ctx });
         },
       },
     ];
@@ -143,7 +154,7 @@ class GenericRepoHandler implements RepoHandler {
     ctx,
   }: {
     repoData: RepoData;
-    env: Env;
+    env: CloudflareEnvironment;
     ctx: any;
   }): Promise<{
     fileUsed: string;
@@ -160,7 +171,7 @@ class GenericRepoHandler implements RepoHandler {
   }: {
     repoData: RepoData;
     query: string;
-    env: Env;
+    env: CloudflareEnvironment;
     ctx: any;
   }): Promise<{
     searchQuery: string;
