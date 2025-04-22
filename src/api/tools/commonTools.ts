@@ -416,21 +416,76 @@ export async function searchRepositoryDocumentationAutoRag({
     };
   }
 
-  const answer = await env.AI.autorag(autoragPipeline).search({
+  // List all subdirectories recursively in R2 to build filter
+  const r2Prefix = `${repoData.owner}/${repoData.repo}/`;
+  let foldersToSearch: string[] = [];
+
+  try {
+    console.log(`Recursively listing folders in R2 with prefix: ${r2Prefix}`);
+    // Fetch all subfolders recursively
+    const subfolders = await listAllSubfolders(env.DOCS_BUCKET, r2Prefix);
+    // Combine root prefix with all found subfolders, ensuring uniqueness
+    foldersToSearch = [...new Set([r2Prefix, ...subfolders])];
+    console.log(
+      `Found ${foldersToSearch.length} total folders (incl. root & subfolders) for AutoRAG search:`,
+      foldersToSearch,
+    );
+  } catch (error) {
+    console.error(
+      `Error listing R2 folders recursively for ${r2Prefix}, falling back to gte filter: ${error}`,
+    );
+  }
+
+  // Define the base search request structure (without filters initially)
+  const searchRequest = {
     query: query,
     rewrite_query: true,
     max_num_results: 30,
     ranking_options: {
       score_threshold: 0.5,
     },
-    filters: {
+    filters: {} as {
+      type: string;
+      filters?: {
+        type: string;
+        key: string;
+        value: string;
+      }[];
+      key?: string;
+      value?: string;
+    },
+  };
+
+  // Add filters based on R2 listing result
+  if (foldersToSearch.length > 1) {
+    // Success: Apply an array of 'eq' filters for each found folder
+    searchRequest.filters = {
+      type: "or",
+      filters: foldersToSearch.map((folderPath) => ({
+        type: "eq",
+        key: "folder",
+        value: folderPath,
+      })),
+    };
+
+    searchRequest.ranking_options = {
+      score_threshold: 0.4,
+    };
+
+    console.log(
+      `Applying ${searchRequest.filters?.filters?.length} 'eq' filters with listed R2 folders.`,
+    );
+  } else {
+    // Fallback: Apply a single 'gte' filter for the base prefix
+    searchRequest.filters = {
       type: "gte",
       key: "folder",
-      value: `${repoData.owner}/${repoData.repo}/`,
-    },
-  });
+      value: r2Prefix,
+    };
+    console.log("Applying fallback 'gte' filter due to R2 list error.");
+  }
 
-  // console.log(answer);
+  const answer = await env.AI.autorag(autoragPipeline).search(searchRequest);
 
   let responseText =
     `## Query\n\n${query}.\n\n## Response\n\n` ||
@@ -1082,4 +1137,39 @@ function getReadmeMDLocationByRepoData(repoData: RepoData): string {
   const readmeLocation =
     readmeMdLocations[`${repoData.owner}/${repoData.repo}`];
   return readmeLocation ?? "README.md";
+}
+
+/**
+ * Recursively list every subfolder prefix under `startPrefix`.
+ * @param {R2Bucket} bucket – the Workers-bound R2 bucket
+ * @param {string} startPrefix – e.g. "path/to/folder/"
+ * @returns {Promise<string[]>}
+ */
+async function listAllSubfolders(bucket: R2Bucket, startPrefix: string) {
+  const all: string[] = [];
+
+  // Define an inner async recursion
+  async function recurse(prefix: string) {
+    let cursor;
+    do {
+      // 1. List one page of prefixes under `prefix`
+      const listResult = await bucket.list({ prefix, delimiter: "/", cursor });
+      const { delimitedPrefixes = [], truncated } = listResult;
+
+      // 2. For each child prefix, record it and recurse into it
+      // Ensure the child prefix ends with '/' before adding/recursing
+      for (const childPrefix of delimitedPrefixes) {
+        const ensuredChildPrefix = childPrefix.endsWith("/")
+          ? childPrefix
+          : childPrefix + "/";
+        all.push(ensuredChildPrefix);
+        await recurse(ensuredChildPrefix);
+      }
+      cursor = truncated ? listResult.cursor : undefined;
+    } while (cursor);
+  }
+
+  // Kick off recursion
+  await recurse(startPrefix);
+  return Array.from(new Set(all)); // dedupe just in case
 }
