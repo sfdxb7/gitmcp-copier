@@ -14,7 +14,9 @@ export { ViewCounterDO } from "./api/utils/ViewCounterDO";
 declare global {
   interface CloudflareEnvironment extends Env {
     CLOUDFLARE_ANALYTICS?: any;
-    VIEW_COUNTER: DurableObjectNamespace;
+    OPENAI_API_KEY?: string;
+    ANTHROPIC_API_KEY?: string;
+    XAI_API_KEY?: string;
   }
 }
 
