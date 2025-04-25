@@ -113,6 +113,11 @@ export async function action({
   const mcp = new MCPClientManager("my-agent", "1.0.0");
   for (const url of mcpServers.map((mcpServer) => mcpServer.url)) {
     try {
+      const response = await fetch(url);
+      if (!response.ok) {
+        console.error("Error fetching tools for url", url, response);
+      }
+      console.log("response", response);
       const { id } = await mcp.connect(url);
       if (mcp.mcpConnections[id]?.connectionState === "ready") {
         const mcptools = await mcp.unstable_getAITools();
