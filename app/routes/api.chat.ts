@@ -1,12 +1,9 @@
 import { getModel } from "~/chat/ai/providers.server";
 import type { modelID } from "~/chat/ai/providers.shared";
-import { streamText, type UIMessage } from "ai";
+import { streamText, type ToolSet, type UIMessage } from "ai";
 
-import {
-  experimental_createMCPClient as createMCPClient,
-  type MCPTransport,
-} from "ai";
 import type { StorageKey } from "~/chat/ai/providers.shared";
+import { MCPClientManager } from "agents/mcp/client";
 
 // Allow streaming responses up to 30 seconds
 export const maxDuration = 60;
@@ -47,68 +44,83 @@ export async function action({
   const env = context.cloudflare.env as CloudflareEnvironment;
   const model = getModel(env, apiKeys);
 
-  // Initialize tools
-  let tools = {};
-  const mcpClients: any[] = [];
+  // // Initialize tools
+  // let tools = {};
+  // const mcpClients: any[] = [];
 
-  // Process each MCP server configuration
-  for (const mcpServer of mcpServers) {
+  // // Process each MCP server configuration
+  // for (const mcpServer of mcpServers) {
+  //   try {
+  //     // Create appropriate transport based on type
+  //     let transport:
+  //       | MCPTransport
+  //       | { type: "sse"; url: string; headers?: Record<string, string> };
+
+  //     if (mcpServer.type === "sse") {
+  //       // Convert headers array to object for SSE transport
+  //       const headers: Record<string, string> = {};
+  //       if (mcpServer.headers && mcpServer.headers.length > 0) {
+  //         mcpServer.headers.forEach((header) => {
+  //           if (header.key) headers[header.key] = header.value || "";
+  //         });
+  //       }
+
+  //       transport = {
+  //         type: "sse" as const,
+  //         url: mcpServer.url,
+  //         headers: Object.keys(headers).length > 0 ? headers : undefined,
+  //       };
+  //     } else {
+  //       console.warn(
+  //         `Skipping MCP server with unsupported transport type: ${mcpServer.type}`,
+  //       );
+  //       continue;
+  //     }
+
+  //     const mcpClient = await createMCPClient({ transport });
+  //     mcpClients.push(mcpClient);
+
+  //     const mcptools = await mcpClient.tools();
+  //     console.log("mcptools", mcptools);
+
+  //     console.log(
+  //       `MCP tools from ${mcpServer.type} transport:`,
+  //       Object.keys(mcptools),
+  //     );
+
+  //     // Add MCP tools to tools object
+  //     tools = { ...tools, ...mcptools };
+  //   } catch (error) {
+  //     console.error("Failed to initialize MCP client:", error);
+  //     // Continue with other servers instead of failing the entire request
+  //   }
+  // }
+
+  // // Register cleanup for all clients
+  // if (mcpClients.length > 0) {
+  //   request.signal.addEventListener("abort", async () => {
+  //     for (const client of mcpClients) {
+  //       try {
+  //         await client.close();
+  //       } catch (error) {
+  //         console.error("Error closing MCP client:", error);
+  //       }
+  //     }
+  //   });
+  // }
+
+  let tools: ToolSet = {};
+  const mcp = new MCPClientManager("my-agent", "1.0.0");
+  for (const url of mcpServers.map((mcpServer) => mcpServer.url)) {
     try {
-      // Create appropriate transport based on type
-      let transport:
-        | MCPTransport
-        | { type: "sse"; url: string; headers?: Record<string, string> };
-
-      if (mcpServer.type === "sse") {
-        // Convert headers array to object for SSE transport
-        const headers: Record<string, string> = {};
-        if (mcpServer.headers && mcpServer.headers.length > 0) {
-          mcpServer.headers.forEach((header) => {
-            if (header.key) headers[header.key] = header.value || "";
-          });
-        }
-
-        transport = {
-          type: "sse" as const,
-          url: mcpServer.url,
-          headers: Object.keys(headers).length > 0 ? headers : undefined,
-        };
-      } else {
-        console.warn(
-          `Skipping MCP server with unsupported transport type: ${mcpServer.type}`,
-        );
-        continue;
+      const { id } = await mcp.connect(url);
+      if (mcp.mcpConnections[id]?.connectionState === "ready") {
+        const mcptools = await mcp.unstable_getAITools();
+        tools = { ...tools, ...mcptools };
       }
-
-      const mcpClient = await createMCPClient({ transport });
-      mcpClients.push(mcpClient);
-
-      const mcptools = await mcpClient.tools();
-
-      console.log(
-        `MCP tools from ${mcpServer.type} transport:`,
-        Object.keys(mcptools),
-      );
-
-      // Add MCP tools to tools object
-      tools = { ...tools, ...mcptools };
     } catch (error) {
-      console.error("Failed to initialize MCP client:", error);
-      // Continue with other servers instead of failing the entire request
+      console.error("Error getting tools for url", url, error);
     }
-  }
-
-  // Register cleanup for all clients
-  if (mcpClients.length > 0) {
-    request.signal.addEventListener("abort", async () => {
-      for (const client of mcpClients) {
-        try {
-          await client.close();
-        } catch (error) {
-          console.error("Error closing MCP client:", error);
-        }
-      }
-    });
   }
 
   // console.log("messages", messages);
