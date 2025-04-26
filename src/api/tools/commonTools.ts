@@ -314,12 +314,13 @@ export async function searchRepositoryDocumentation({
         console.log("Found results in AutoRAG", autoragResult);
         return autoragResult;
       }
+
+      console.log("No results in AutoRAG", autoragResult);
     } catch (error) {
       console.error("Error in AutoRAG search", error);
     }
   }
 
-  console.log("No results in AutoRAG, falling back to naive search");
   return await fallbackSearch({
     repoData,
     query,
