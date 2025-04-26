@@ -205,7 +205,7 @@ export async function fetchDocumentation({
         console.log(`Fetched pre-generated llms.txt for ${owner}/${repo}`);
         fileUsed = "llms.txt (generated)";
       } else {
-        console.log(`No pre-generated llms.txt found for ${owner}/${repo}`);
+        console.error(`No pre-generated llms.txt found for ${owner}/${repo}`);
       }
     }
 
