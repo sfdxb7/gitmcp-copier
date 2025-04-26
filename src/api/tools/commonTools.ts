@@ -309,7 +309,8 @@ export async function searchRepositoryDocumentation({
         autoragPipeline: "docs-rag",
       });
       if (
-        autoragResult?.content[0]?.text?.includes("No results found") === false
+        autoragResult?.content[0]?.text?.startsWith("No results found") ===
+        false
       ) {
         console.log("Found results in AutoRAG", autoragResult);
         return autoragResult;
