@@ -126,7 +126,7 @@ export async function githubApiRequest(
   url: string,
   options: RequestInit = {},
   env: CloudflareEnvironment,
-  retryCount = 0,
+  retryCount = 1,
   useAuth = true,
 ): Promise<Response | null> {
   try {
@@ -280,8 +280,7 @@ export async function searchFileByName(
   repo: string,
   env: Env,
 ): Promise<any> {
-  const searchUrl = `https://api.github.com/search/code?q=filename:${encodeURIComponent(filename)}+repo:${owner}/${repo}`;
-
+  const searchUrl = `https://api.github.com/search/code?q=filename:${filename}+repo:${owner}/${repo}`;
   const response = await githubApiRequest(searchUrl, {}, env);
 
   if (!response || !response.ok) {

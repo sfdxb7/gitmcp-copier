@@ -32,7 +32,7 @@ export async function fetchDocumentation({
   ctx: any;
 }): Promise<FetchDocumentationResult> {
   const { owner, repo, urlType } = repoData;
-  const cacheTTL = 15 * 60; // 15 minutes in seconds
+  const cacheTTL = 30 * 60; // 30 minutes in seconds
 
   // Try fetching from cache first
   if (owner && repo) {
@@ -41,7 +41,6 @@ export async function fetchDocumentation({
       console.log(
         `Returning cached fetchDocumentation result for ${owner}/${repo}`,
       );
-      // Optional: Extend cache TTL if needed, or just return
       return cachedResult;
     }
   }
@@ -203,45 +202,44 @@ export async function fetchDocumentation({
       }
     }
 
-    // Fallback to README.md if llms.txt not found in any location (GitHub or R2)
+    // Fallback to README if llms.txt not found in any location (GitHub or R2)
     if (!content) {
-      console.log(`llms.txt not found, trying README.md`);
-      // Use static approach for README
-      const readmeLocation = getReadmeMDLocationByRepoData(repoData);
+      console.log(
+        `llms.txt not found, trying README.* at root`,
+        owner,
+        repo,
+        docsBranch,
+      );
       // Ensure docsBranch is available (should be fetched above)
       if (!docsBranch) {
         docsBranch = await getRepoBranch(owner, repo, env);
       }
 
-      // Try README.md (uppercase) first
-      content = await fetchFileFromGitHub(
+      // Search for README.* files in the root directory
+      const readmeResult = await searchGitHubRepo(
         owner,
         repo,
-        docsBranch,
-        readmeLocation,
+        "README+path:/", // Search for files like README.* in root
+        docsBranch, // Use the determined branch
         env,
-        false,
+        ctx,
       );
 
-      if (content) {
-        fileUsed = "README.md";
-        docsPath = constructGithubUrl(owner, repo, docsBranch, "README.md");
-      } else {
-        // If uppercase README.md not found, try lowercase readme.md
-        console.log(`README.md not found, trying readme.md`);
-        content = await fetchFileFromGitHub(
+      if (readmeResult) {
+        content = readmeResult.content;
+        // Extract filename from the path for clarity, default to full path if extraction fails
+        const filename =
+          readmeResult.path.split("/").pop() || readmeResult.path;
+        fileUsed = filename; // e.g., "README.md", "README.asciidoc"
+        docsPath = constructGithubUrl(
           owner,
           repo,
           docsBranch,
-          "readme.md",
-          env,
-          false,
-        );
-
-        if (content) {
-          fileUsed = "readme.md";
-          docsPath = constructGithubUrl(owner, repo, docsBranch, "readme.md");
-        }
+          readmeResult.path,
+        ); // Use the full path found
+        console.log(`Found README file via search: ${fileUsed}`);
+      } else {
+        console.log(`No README file found at root for ${owner}/${repo}`);
       }
     }
 
@@ -266,7 +264,7 @@ export async function fetchDocumentation({
   };
 
   // Cache the final result before returning
-  if (owner && repo) {
+  if (owner && repo && !!result?.content) {
     ctx.waitUntil(
       cacheFetchDocResult(owner, repo, result, cacheTTL, env).catch((error) => {
         console.warn(`Failed to cache fetch documentation result: ${error}`);
@@ -925,19 +923,6 @@ export function generateCodeSearchToolDescription({
   repo,
 }: RepoData): string {
   return `Search for code within the GitHub repository: "${owner}/${repo}" using the GitHub Search API (exact match). Returns matching files for you to query further if relevant.`;
-}
-
-const readmeMdLocations: Record<string, `${string}/${string}`> = {
-  "vercel/next.js": "packages/next/README.md",
-};
-
-function getReadmeMDLocationByRepoData(repoData: RepoData): string {
-  if (!repoData.owner || !repoData.repo) {
-    return "README.md";
-  }
-  const readmeLocation =
-    readmeMdLocations[`${repoData.owner}/${repoData.repo}`];
-  return readmeLocation ?? "README.md";
 }
 
 /**
